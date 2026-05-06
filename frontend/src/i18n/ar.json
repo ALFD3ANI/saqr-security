@@ -128,6 +128,16 @@
     "ctaEnterprise": "تواصل معنا",
     "trial": "تجربة مجانية 14 يوم"
   },
+  "admin": {
+    "dashboard": "لوحة الإدارة",
+    "users": "إدارة المستخدمين",
+    "security": "مركز الأمان",
+    "financial": "المالية",
+    "approvals": "طلبات التفعيل",
+    "usage": "مراقبة الاستهلاك",
+    "reports": "التقارير",
+    "settings": "الإعدادات"
+  },
   "auth": {
     "loginTitle": "تسجيل الدخول",
     "registerTitle": "إنشاء حساب جديد",

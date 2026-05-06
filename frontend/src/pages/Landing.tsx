@@ -2,8 +2,7 @@ import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import {
   Shield, Zap, Globe, FileSearch, Brain, BarChart3,
-  ChevronRight, CheckCircle2, ArrowRight, Star,
-  Lock, Eye, Code2, AlertTriangle
+  ArrowRight, Star, Eye, Code2,
 } from "lucide-react";
 
 const PLANS = [

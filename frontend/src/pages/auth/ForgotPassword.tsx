@@ -16,7 +16,7 @@ export default function ForgotPassword() {
     resolver: zodResolver(schema),
   });
 
-  const onSubmit = async (data: { email: string }) => {
+  const onSubmit = async (data: Record<string, string>) => {
     setLoading(true);
     try {
       await authApi.forgotPassword(data.email);
