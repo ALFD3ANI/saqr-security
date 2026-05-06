@@ -11,7 +11,9 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.database import create_tables
 from app.api.v1.health import router as health_router
+from app.api.v1.auth import router as auth_router
 
 logger = structlog.get_logger()
 
@@ -20,6 +22,9 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     """يشتغل عند بدء وإيقاف التطبيق"""
     logger.info("🦅 Saqr Security API starting...", env=settings.APP_ENV)
+    if settings.APP_ENV == "development":
+        await create_tables()
+        logger.info("Database tables created/verified")
     yield
     logger.info("🦅 Saqr Security API stopping...")
 
@@ -80,6 +85,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # ── تسجيل الـ Routers ──────────────────────────────────────────────────
 app.include_router(health_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
 
 
 if __name__ == "__main__":
