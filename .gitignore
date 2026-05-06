@@ -1,0 +1,67 @@
+# ════════════════════════════════════════
+# Saqr Security - Git Ignore
+# ════════════════════════════════════════
+
+# البيئة والأسرار (لا ترفع أبداً!)
+.env
+.env.local
+.env.production
+*.key
+*.pem
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+*.log
+
+# Node.js
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Media & Uploads
+uploads/
+media/
+
+# Alembic
+backend/alembic/versions/*.pyc

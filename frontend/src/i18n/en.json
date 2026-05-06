@@ -1,0 +1,146 @@
+{
+  "common": {
+    "appName": "Saqr Security",
+    "appNameEn": "Saqr Security",
+    "tagline": "Protection with Falcon's Eye",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "confirm": "Confirm",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "refresh": "Refresh",
+    "settings": "Settings",
+    "logout": "Logout",
+    "login": "Login",
+    "register": "Register",
+    "or": "or",
+    "and": "and",
+    "yes": "Yes",
+    "no": "No",
+    "sar": "SAR",
+    "month": "month",
+    "year": "year",
+    "day": "day",
+    "hour": "hour",
+    "minute": "minute"
+  },
+  "nav": {
+    "home": "Home",
+    "features": "Features",
+    "pricing": "Pricing",
+    "about": "About",
+    "contact": "Contact",
+    "dashboard": "Dashboard",
+    "scans": "Scans",
+    "reports": "Reports",
+    "compliance": "Compliance",
+    "aiAssistant": "AI Assistant",
+    "billing": "Billing",
+    "admin": "Admin"
+  },
+  "hero": {
+    "badge": "AI-Powered",
+    "title": "Protection with",
+    "titleHighlight": "Falcon's Eye",
+    "subtitle": "Complete cybersecurity SaaS platform with full Saudi compliance: NCA ECC, SAMA CSF & PDPL",
+    "cta": "Start Free",
+    "ctaSecondary": "See how it works",
+    "trusted": "Trusted by",
+    "trustedCount": "500+ Saudi companies",
+    "feature1": "10 scan types",
+    "feature2": "8 AI features",
+    "feature3": "Full compliance reports",
+    "feature4": "Full Arabic support"
+  },
+  "features": {
+    "title": "Unmatched Features",
+    "subtitle": "Everything you need for complete protection in one place",
+    "scan": {
+      "title": "Comprehensive Scanning",
+      "desc": "10 scan types: websites, files, apps, APIs, GitHub, and more"
+    },
+    "ai": {
+      "title": "Integrated AI",
+      "desc": "8 AI features: assistant, explainer, reports, remediation, analysis, and more"
+    },
+    "compliance": {
+      "title": "Saudi Compliance",
+      "desc": "Ready reports for NCA ECC, SAMA CSF & PDPL"
+    },
+    "remediation": {
+      "title": "Guided Remediation",
+      "desc": "Step-by-step fix guide with ready code and WAF integration"
+    },
+    "arabic": {
+      "title": "Full Arabic Support",
+      "desc": "Professional RTL interface with Arabic reports and support"
+    },
+    "billing": {
+      "title": "Saudi Payments",
+      "desc": "Moyasar, ZATCA invoicing, and locally-stored data"
+    }
+  },
+  "pricing": {
+    "title": "Plans for Every Need",
+    "subtitle": "Start free, upgrade when ready",
+    "monthly": "Monthly",
+    "annual": "Annual",
+    "save": "Save 16%",
+    "mostPopular": "Most Popular",
+    "free": {
+      "name": "Free",
+      "price": "0",
+      "desc": "For exploration and testing"
+    },
+    "starter": {
+      "name": "Starter",
+      "price": "99",
+      "desc": "For individual developers"
+    },
+    "professional": {
+      "name": "Professional",
+      "price": "299",
+      "desc": "For startups"
+    },
+    "business": {
+      "name": "Business",
+      "price": "999",
+      "desc": "For medium companies"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "price": "4,999+",
+      "desc": "For large organizations"
+    },
+    "cta": "Get Started",
+    "ctaEnterprise": "Contact Us",
+    "trial": "14-day free trial"
+  },
+  "auth": {
+    "loginTitle": "Sign In",
+    "registerTitle": "Create Account",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "fullName": "Full Name",
+    "phone": "Phone Number",
+    "company": "Company Name (optional)",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "pendingApproval": "Your request is under review",
+    "pendingApprovalDesc": "Your request will be reviewed within 24 hours and you'll be notified upon activation"
+  }
+}

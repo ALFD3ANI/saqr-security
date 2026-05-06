@@ -1,0 +1,102 @@
+version: "3.9"
+
+services:
+  # ── قاعدة البيانات PostgreSQL ─────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: saqr_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: saqr
+      POSTGRES_PASSWORD: saqrpass
+      POSTGRES_DB: saqr_db
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saqr -d saqr_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - saqr_network
+
+  # ── Redis (Cache + Queue) ─────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: saqr_redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - saqr_network
+
+  # ── Backend (FastAPI) ─────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: saqr_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://saqr:saqrpass@db:5432/saqr_db"
+      DATABASE_URL_SYNC: "postgresql://saqr:saqrpass@db:5432/saqr_db"
+      REDIS_URL: "redis://redis:6379/0"
+      APP_ENV: development
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app  # Hot reload في التطوير
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+    networks:
+      - saqr_network
+
+  # ── Frontend (Vite dev server) ────────────────────────────────
+  frontend:
+    image: node:20-alpine
+    container_name: saqr_frontend
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # لمنع نسخ node_modules من الـ host
+    ports:
+      - "5173:5173"
+    command: >
+      sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_API_URL: "http://localhost:8000"
+    networks:
+      - saqr_network
+
+volumes:
+  postgres_data:
+    name: saqr_postgres_data
+  redis_data:
+    name: saqr_redis_data
+
+networks:
+  saqr_network:
+    name: saqr_network
+    driver: bridge
