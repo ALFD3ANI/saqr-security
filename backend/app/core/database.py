@@ -1,23 +1,36 @@
 """
-الاتصال بقاعدة البيانات PostgreSQL
-يستخدم SQLAlchemy مع async للأداء العالي
+الاتصال بقاعدة البيانات
+- بيئة التطوير: SQLite (بدون تثبيت)
+- بيئة الإنتاج: PostgreSQL
 """
+import os
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
 
 
-# محرك قاعدة البيانات (async)
+def _build_db_url() -> str:
+    url = settings.DATABASE_URL
+    # لو الـ URL يبدأ بـ postgresql، نحوّله لـ SQLite في حالة عدم وجود PostgreSQL
+    if url.startswith("postgresql") and settings.APP_ENV == "development":
+        db_path = os.path.join(os.path.dirname(__file__), "..", "..", "saqr_dev.db")
+        db_path = os.path.abspath(db_path)
+        return f"sqlite+aiosqlite:///{db_path}"
+    return url
+
+
+DB_URL = _build_db_url()
+
+# SQLite لا يدعم pool_size/max_overflow
+_is_sqlite = DB_URL.startswith("sqlite")
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.APP_ENV == "development",  # طباعة SQL في بيئة التطوير فقط
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    DB_URL,
+    echo=settings.APP_ENV == "development",
+    **({} if _is_sqlite else {"pool_pre_ping": True, "pool_size": 10, "max_overflow": 20}),
 )
 
-# مصنع الـ sessions
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
@@ -26,12 +39,10 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 class Base(DeclarativeBase):
-    """الكلاس الأساسي لكل الـ Models"""
     pass
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency injection للـ FastAPI endpoints"""
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -44,6 +55,5 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def create_tables():
-    """إنشاء الجداول (للتطوير فقط — في الإنتاج استخدم Alembic)"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

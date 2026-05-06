@@ -10,6 +10,15 @@
 *.pem
 secrets/
 
+# Python venv
+backend/venv/
+backend/.venv/
+
+# SQLite dev database
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+
 # Python
 __pycache__/
 *.py[cod]
