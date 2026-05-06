@@ -20,8 +20,10 @@ import PendingApproval from "@/pages/auth/PendingApproval";
 import ForgotPassword  from "@/pages/auth/ForgotPassword";
 
 // App pages
-import Dashboard      from "@/pages/app/Dashboard";
+import Dashboard       from "@/pages/app/Dashboard";
+import Billing         from "@/pages/app/Billing";
 import PlaceholderPage from "@/pages/app/PlaceholderPage";
+import Pricing         from "@/pages/public/Pricing";
 
 initTheme();
 const queryClient = new QueryClient();
@@ -74,13 +76,16 @@ export default function App() {
             <Route path="/reports"    element={<PlaceholderPage title="التقارير" phase={10} />} />
             <Route path="/compliance" element={<PlaceholderPage title="الامتثال" phase={11} />} />
             <Route path="/ai"         element={<PlaceholderPage title="مساعد AI" phase={9} />} />
-            <Route path="/billing"    element={<PlaceholderPage title="الفوترة" phase={6} />} />
+            <Route path="/billing"    element={<Billing />} />
             <Route path="/settings"   element={<PlaceholderPage title="الإعدادات" phase={12} />} />
             {/* Admin */}
             <Route path="/admin"          element={<PlaceholderPage title="Admin Dashboard" phase={12} />} />
             <Route path="/admin/users"    element={<PlaceholderPage title="User Management" phase={12} />} />
             <Route path="/admin/security" element={<PlaceholderPage title="Security Center" phase={12} />} />
           </Route>
+
+          {/* Pricing — متاحة للجميع وداخل AppLayout للمسجّلين */}
+          <Route path="/pricing" element={<Pricing />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

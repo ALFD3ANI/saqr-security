@@ -55,6 +55,15 @@ api.interceptors.response.use(
 
 export default api;
 
+// ── Subscriptions API ────────────────────────────────────────
+export const subscriptionApi = {
+  getUsage:   () => api.get("/subscriptions/usage"),
+  getPlans:   () => api.get("/subscriptions/plans"),
+  upgrade:    (plan: string, billing: string) =>
+    api.post("/subscriptions/upgrade", { plan, billing }),
+  getHistory: () => api.get("/subscriptions/history"),
+};
+
 // ── Auth API ─────────────────────────────────────────────────
 export const authApi = {
   register: (data: RegisterPayload) => api.post("/auth/register", data),

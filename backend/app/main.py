@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.database import create_tables
 from app.api.v1.health import router as health_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.subscriptions import router as subscriptions_router
 
 logger = structlog.get_logger()
 
@@ -86,6 +87,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ── تسجيل الـ Routers ──────────────────────────────────────────────────
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(subscriptions_router, prefix="/api/v1")
 
 
 if __name__ == "__main__":
