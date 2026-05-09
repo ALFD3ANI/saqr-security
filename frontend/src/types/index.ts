@@ -16,6 +16,15 @@ export interface PlanConfig {
   aiSearchPerMonth: number;
 }
 
+// AI model access per plan (mirrors backend PLAN_LIMITS)
+export const PLAN_LIMITS_FE: Record<string, { aiModels: string[] }> = {
+  free:         { aiModels: ["haiku"] },
+  starter:      { aiModels: ["haiku"] },
+  professional: { aiModels: ["haiku", "sonnet"] },
+  business:     { aiModels: ["haiku", "sonnet"] },
+  enterprise:   { aiModels: ["haiku", "sonnet", "opus"] },
+};
+
 export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
   free: {
     name: "Free", nameAr: "مجاني",
