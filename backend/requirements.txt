@@ -10,10 +10,9 @@ asyncpg==0.29.0
 aiosqlite==0.20.0
 psycopg2-binary==2.9.9
 
-# Caching & Queue
-redis==5.0.4
-celery==5.4.0
-celery[redis]==5.4.0
+# Caching & Queue (optional — not used in core features)
+# redis==5.0.4
+# celery==5.4.0
 
 # Auth & Security
 python-jose[cryptography]==3.3.0
@@ -38,10 +37,6 @@ aiohttp==3.9.5
 # Utilities
 structlog==24.2.0
 python-slugify==8.0.4
-Pillow==10.3.0
-reportlab==4.2.0
-openpyxl==3.1.2
 
 # Monitoring
 sentry-sdk[fastapi]==2.4.0
-prometheus-fastapi-instrumentator==7.0.0
