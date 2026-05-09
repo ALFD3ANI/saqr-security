@@ -1,0 +1,88 @@
+version: "3.9"
+# ════════════════════════════════════════════════════════
+# Saqr Security — Production Stack
+# الاستخدام: docker compose -f docker-compose.prod.yml up -d
+# ════════════════════════════════════════════════════════
+
+services:
+  # ── قاعدة البيانات PostgreSQL ─────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: saqr_db_prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-saqr}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-saqr_db}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-saqr} -d ${DB_NAME:-saqr_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - saqr_internal
+    # لا تفتح PostgreSQL للخارج في الإنتاج
+
+  # ── Backend (FastAPI) ──────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: saqr_backend_prod
+    restart: always
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://${DB_USER:-saqr}:${DB_PASSWORD}@db:5432/${DB_NAME:-saqr_db}"
+      DATABASE_URL_SYNC: "postgresql://${DB_USER:-saqr}:${DB_PASSWORD}@db:5432/${DB_NAME:-saqr_db}"
+      APP_ENV: production
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+      --loop asyncio
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - saqr_internal
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ── Frontend (nginx + built React) ────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: saqr_frontend_prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # SSL certs — أضف شهادتك هنا
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    networks:
+      - saqr_internal
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  postgres_data:
+    name: saqr_postgres_data_prod
+
+networks:
+  saqr_internal:
+    name: saqr_internal_prod
+    driver: bridge
+    internal: false

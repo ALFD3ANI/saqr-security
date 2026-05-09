@@ -141,3 +141,21 @@ class TotpSetupResponse(BaseModel):
     secret: str
     qr_uri: str
     message: str = "امسح الـ QR code بـ Google Authenticator"
+
+
+class UpdateProfileRequest(BaseModel):
+    full_name: Optional[str] = None
+    company_name: Optional[str] = None
+    phone: Optional[str] = None
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError("الاسم يجب أن يكون حرفين على الأقل")
+        if len(v) > 100:
+            raise ValueError("الاسم طويل جداً")
+        return v

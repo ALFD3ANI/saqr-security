@@ -84,6 +84,8 @@ export const authApi = {
   setup2FA: () => api.post("/auth/2fa/setup"),
   enable2FA: (totp_code: string) => api.post("/auth/2fa/enable", { totp_code }),
   disable2FA: (totp_code: string) => api.post("/auth/2fa/disable", { totp_code }),
+  updateProfile: (data: { full_name?: string; company_name?: string; phone?: string }) =>
+    api.patch("/auth/profile", data),
 };
 
 // ── Scans API ─────────────────────────────────────────────────
@@ -103,7 +105,8 @@ export const scansApi = {
 
 // ── Admin API ─────────────────────────────────────────────────
 export const adminApi = {
-  getStats:       () => api.get("/admin/dashboard/stats"),
+  getStats:         () => api.get("/admin/dashboard/stats"),
+  getSecurityStats: () => api.get("/admin/security/stats"),
 
   listUsers: (params?: { search?: string; status?: string; plan?: string; limit?: number; offset?: number }) =>
     api.get("/admin/users/", { params }),

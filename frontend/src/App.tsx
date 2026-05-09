@@ -22,7 +22,6 @@ import ForgotPassword  from "@/pages/auth/ForgotPassword";
 // App pages
 import Dashboard       from "@/pages/app/Dashboard";
 import Billing         from "@/pages/app/Billing";
-import PlaceholderPage from "@/pages/app/PlaceholderPage";
 import Pricing         from "@/pages/public/Pricing";
 import Scans           from "@/pages/app/Scans";
 import NewScan         from "@/pages/app/NewScan";
@@ -30,11 +29,13 @@ import ScanDetail      from "@/pages/app/ScanDetail";
 import AIAssistant     from "@/pages/app/AIAssistant";
 import Reports         from "@/pages/app/Reports";
 import Compliance      from "@/pages/app/Compliance";
+import Settings        from "@/pages/app/Settings";
 
 // Admin pages
 import AdminDashboard  from "@/pages/admin/AdminDashboard";
 import ApprovalQueue   from "@/pages/admin/ApprovalQueue";
 import UserManagement  from "@/pages/admin/UserManagement";
+import SecurityCenter  from "@/pages/admin/SecurityCenter";
 
 // Payment
 import PaymentCallback from "@/pages/app/PaymentCallback";
@@ -100,12 +101,12 @@ export default function App() {
             <Route path="/compliance" element={<Compliance />} />
             <Route path="/ai"          element={<AIAssistant />} />
             <Route path="/billing"    element={<Billing />} />
-            <Route path="/settings"   element={<PlaceholderPage title="الإعدادات" phase={12} />} />
+            <Route path="/settings"   element={<Settings />} />
             {/* Admin */}
             <Route path="/admin"           element={<AdminRoute><AdminDashboard /></AdminRoute>} />
             <Route path="/admin/approvals" element={<AdminRoute><ApprovalQueue /></AdminRoute>} />
             <Route path="/admin/users"     element={<AdminRoute><UserManagement /></AdminRoute>} />
-            <Route path="/admin/security"  element={<AdminRoute><PlaceholderPage title="Security Center" phase={12} /></AdminRoute>} />
+            <Route path="/admin/security"  element={<AdminRoute><SecurityCenter /></AdminRoute>} />
           </Route>
 
           {/* Pricing — متاحة للجميع وداخل AppLayout للمسجّلين */}

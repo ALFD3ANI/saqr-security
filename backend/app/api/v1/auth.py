@@ -22,6 +22,7 @@ from app.schemas.auth import (
     ChangePasswordRequest, Enable2FARequest, ForgotPasswordRequest,
     LoginRequest, MessageResponse, RefreshTokenRequest, RegisterRequest,
     ResetPasswordRequest, TokenResponse, TotpSetupResponse, UserResponse,
+    UpdateProfileRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -398,4 +399,22 @@ async def disable_2fa(
 @router.get("/me", response_model=UserResponse)
 async def get_me(user: User = Depends(get_current_user)):
     """جلب بيانات المستخدم المسجّل حالياً"""
+    return UserResponse.model_validate(user)
+
+
+@router.patch("/profile", response_model=UserResponse)
+async def update_profile(
+    body: UpdateProfileRequest,
+    user: User = Depends(get_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """تحديث بيانات الملف الشخصي"""
+    if body.full_name is not None:
+        user.full_name = body.full_name
+    if body.company_name is not None:
+        user.company_name = body.company_name
+    if body.phone is not None:
+        user.phone = body.phone
+    await db.commit()
+    await db.refresh(user)
     return UserResponse.model_validate(user)

@@ -18,6 +18,7 @@ from app.api.v1.subscriptions import router as subscriptions_router
 from app.api.v1.admin.dashboard import router as admin_dashboard_router
 from app.api.v1.admin.approvals import router as admin_approvals_router
 from app.api.v1.admin.users import router as admin_users_router
+from app.api.v1.admin.security import router as admin_security_router
 from app.api.v1.scans import router as scans_router
 from app.api.v1.ai import router as ai_router
 from app.api.v1.compliance import router as compliance_router
@@ -97,6 +98,7 @@ app.include_router(subscriptions_router, prefix="/api/v1")
 app.include_router(admin_dashboard_router, prefix="/api/v1")
 app.include_router(admin_approvals_router, prefix="/api/v1")
 app.include_router(admin_users_router, prefix="/api/v1")
+app.include_router(admin_security_router, prefix="/api/v1")
 app.include_router(scans_router, prefix="/api/v1")
 app.include_router(ai_router, prefix="/api/v1")
 app.include_router(compliance_router, prefix="/api/v1")
