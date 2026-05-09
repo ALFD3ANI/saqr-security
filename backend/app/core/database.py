@@ -30,10 +30,19 @@ DB_URL = _build_db_url()
 # SQLite لا يدعم pool_size/max_overflow
 _is_sqlite = DB_URL.startswith("sqlite")
 
+_engine_kwargs: dict = {}
+if not _is_sqlite:
+    _engine_kwargs = {
+        "pool_pre_ping": True,
+        "pool_size": 5,
+        "max_overflow": 10,
+        "connect_args": {"ssl": "require"},
+    }
+
 engine = create_async_engine(
     DB_URL,
     echo=settings.APP_ENV == "development",
-    **({} if _is_sqlite else {"pool_pre_ping": True, "pool_size": 10, "max_overflow": 20}),
+    **_engine_kwargs,
 )
 
 AsyncSessionLocal = async_sessionmaker(
