@@ -88,7 +88,13 @@ export const authApi = {
 
 // ── Scans API ─────────────────────────────────────────────────
 export const scansApi = {
-  create:  (scan_type: string, target: string) => api.post("/scans/", { scan_type, target }),
+  create:  (scan_type: string, target: string, extra?: string) =>
+    api.post("/scans/", { scan_type, target, extra }),
+  upload:  (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post("/scans/upload", form, { headers: { "Content-Type": "multipart/form-data" } });
+  },
   list:    (params?: { scan_type?: string; status?: string; limit?: number; offset?: number }) =>
     api.get("/scans/", { params }),
   get:     (id: number) => api.get(`/scans/${id}`),

@@ -2,9 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { scansApi } from "@/services/api";
 import {
-  Plus, Globe, ShieldAlert,
+  Plus, Globe, ShieldAlert, FileCode2, Server, Github, Mail, Network,
   CheckCircle2, Clock, XCircle, Loader2, ChevronRight
 } from "lucide-react";
+
+const TYPE_ICONS: Record<string, React.ElementType> = {
+  url: Globe, domain: Network, api: Server,
+  file: FileCode2, github: Github, email: Mail,
+};
 
 interface Scan {
   id: number;
@@ -102,7 +107,7 @@ export default function Scans() {
             >
               {/* Icon */}
               <div className="p-2.5 bg-primary/10 rounded-xl shrink-0">
-                <Globe size={18} className="text-primary" />
+                {(() => { const I = TYPE_ICONS[scan.scan_type] ?? Globe; return <I size={18} className="text-primary" />; })()}
               </div>
 
               {/* Info */}

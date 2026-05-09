@@ -1,57 +1,123 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { scansApi } from "@/services/api";
-import { Globe, ArrowLeft, Shield } from "lucide-react";
+import {
+  Globe, ArrowLeft, Shield, FileCode2, Server, Github,
+  Mail, Network, Upload, X, AlertTriangle
+} from "lucide-react";
 
-const SCAN_TYPES = [
+interface ScanTypeConfig {
+  type: string;
+  icon: React.ElementType;
+  label: string;
+  description: string;
+  placeholder: string;
+  color: string;
+  isFile?: boolean;
+  hasExtra?: { label: string; placeholder: string };
+}
+
+const SCAN_TYPES: ScanTypeConfig[] = [
   {
     type: "url",
     icon: Globe,
-    label: "URL / موقع إلكتروني",
-    labelEn: "URL / Website",
-    description: "فحص شامل للموقع: SSL، Security Headers، المحتوى، الملفات الحساسة",
+    label: "موقع إلكتروني (URL)",
+    description: "SSL، Security Headers، المحتوى، الملفات الحساسة",
     placeholder: "https://example.com",
     color: "border-primary/50 bg-primary/5",
   },
   {
     type: "domain",
-    icon: Globe,
+    icon: Network,
     label: "نطاق (Domain)",
-    labelEn: "Domain",
-    description: "فحص النطاق: DNS، Subdomains، Open Ports",
+    description: "DNS، SPF، DMARC، Subdomains، Open Ports",
     placeholder: "example.com",
     color: "border-blue-500/50 bg-blue-500/5",
+  },
+  {
+    type: "api",
+    icon: Server,
+    label: "REST API",
+    description: "CORS، Authentication، Rate Limiting، Data Leakage",
+    placeholder: "https://api.example.com",
+    color: "border-cyan-500/50 bg-cyan-500/5",
+    hasExtra: { label: "Authorization Header (اختياري)", placeholder: "Bearer eyJhbGci..." },
+  },
+  {
+    type: "file",
+    icon: FileCode2,
+    label: "ملف كود",
+    description: "Python، JS، PHP، Java — بحث عن أسرار وثغرات",
+    placeholder: "",
+    color: "border-purple-500/50 bg-purple-500/5",
+    isFile: true,
+  },
+  {
+    type: "github",
+    icon: Github,
+    label: "GitHub Repository",
+    description: "Secrets، Sensitive Files، Vulnerable Dependencies",
+    placeholder: "https://github.com/owner/repo  أو  owner/repo",
+    color: "border-gray-500/50 bg-gray-500/5",
+  },
+  {
+    type: "email",
+    icon: Mail,
+    label: "أمان البريد الإلكتروني",
+    description: "SPF، DMARC، DKIM، MX Records، Email Spoofing",
+    placeholder: "example.com  أو  user@example.com",
+    color: "border-amber-500/50 bg-amber-500/5",
   },
 ];
 
 export default function NewScan() {
   const navigate = useNavigate();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [selectedType, setSelectedType] = useState("url");
   const [target, setTarget] = useState("");
+  const [extra, setExtra] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
 
+  const config = SCAN_TYPES.find(s => s.type === selectedType)!;
+
   const mut = useMutation({
-    mutationFn: () => scansApi.create(selectedType, target.trim()),
-    onSuccess: (res) => {
-      navigate(`/scans/${res.data.scan_id}`);
+    mutationFn: async () => {
+      if (config.isFile) {
+        if (!file) throw new Error("يرجى اختيار ملف");
+        const res = await scansApi.upload(file);
+        return res;
+      }
+      return scansApi.create(selectedType, target.trim(), extra.trim() || undefined);
     },
+    onSuccess: (res) => navigate(`/scans/${res.data.scan_id}`),
     onError: (e: any) => {
-      setError(e.response?.data?.detail?.message ?? "حدث خطأ أثناء إنشاء الفحص");
+      setError(e.response?.data?.detail?.message ?? e.message ?? "حدث خطأ أثناء إنشاء الفحص");
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!target.trim()) { setError("يرجى إدخال الهدف"); return; }
+    if (config.isFile) {
+      if (!file) { setError("يرجى اختيار ملف"); return; }
+    } else {
+      if (!target.trim()) { setError("يرجى إدخال الهدف"); return; }
+    }
     mut.mutate();
   };
 
-  const selected = SCAN_TYPES.find(s => s.type === selectedType)!;
+  const handleTypeChange = (type: string) => {
+    setSelectedType(type);
+    setTarget("");
+    setExtra("");
+    setFile(null);
+    setError("");
+  };
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
@@ -62,65 +128,130 @@ export default function NewScan() {
         </button>
         <div>
           <h1 className="text-xl font-bold text-text-primary">فحص جديد</h1>
-          <p className="text-text-muted text-sm">اختر نوع الفحص وأدخل الهدف</p>
+          <p className="text-text-muted text-sm">6 أنواع فحص متاحة</p>
         </div>
       </div>
 
-      {/* Scan Type Selector */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Scan Type Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
         {SCAN_TYPES.map((st) => {
           const Icon = st.icon;
+          const active = selectedType === st.type;
           return (
             <button
               key={st.type}
-              onClick={() => { setSelectedType(st.type); setTarget(""); setError(""); }}
-              className={`text-start p-4 rounded-xl border-2 transition-all ${
-                selectedType === st.type
-                  ? st.color + " border-opacity-100"
-                  : "border-border hover:border-primary/30 bg-bg-card"
+              onClick={() => handleTypeChange(st.type)}
+              className={`text-start p-3.5 rounded-xl border-2 transition-all ${
+                active ? st.color : "border-border hover:border-primary/30 bg-bg-card"
               }`}
             >
-              <div className="flex items-center gap-2 mb-2">
-                <Icon size={16} className={selectedType === st.type ? "text-primary" : "text-text-muted"} />
-                <span className={`text-sm font-semibold ${selectedType === st.type ? "text-text-primary" : "text-text-muted"}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Icon size={15} className={active ? "text-primary" : "text-text-muted"} />
+                <span className={`text-xs font-semibold leading-tight ${active ? "text-text-primary" : "text-text-muted"}`}>
                   {st.label}
                 </span>
               </div>
-              <p className="text-xs text-text-muted leading-relaxed">{st.description}</p>
+              <p className="text-xs text-text-muted leading-relaxed line-clamp-2">{st.description}</p>
             </button>
           );
         })}
       </div>
 
-      {/* Target Input */}
+      {/* Input Form */}
       <form onSubmit={handleSubmit} className="bg-bg-card border border-border rounded-2xl p-6 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
-            الهدف
-          </label>
-          <input
-            type="text"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            placeholder={selected.placeholder}
-            className="w-full bg-bg-dark border border-border rounded-xl px-4 py-3 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary text-sm"
-            dir="ltr"
-          />
-          {error && <p className="mt-2 text-red-400 text-xs">{error}</p>}
-        </div>
 
-        {/* Info Box */}
-        <div className="flex gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
-          <Shield size={16} className="text-primary shrink-0 mt-0.5" />
-          <div className="text-xs text-text-muted space-y-1">
-            <p>يُفحص الهدف بشكل آمن ومسؤول وفق أفضل معايير OWASP.</p>
-            <p>لا تفحص إلا مواقع تملكها أو لديك تصريح بفحصها.</p>
+        {config.isFile ? (
+          /* File Upload */
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              اختر ملف كود للفحص
+            </label>
+            <input
+              ref={fileRef}
+              type="file"
+              className="hidden"
+              accept=".py,.js,.ts,.jsx,.tsx,.php,.java,.html,.htm,.env,.yml,.yaml,.json,.sh,.rb,.go,.mjs,.cs,.cpp,.c,.h"
+              onChange={(e) => { setFile(e.target.files?.[0] ?? null); setError(""); }}
+            />
+            {file ? (
+              <div className="flex items-center gap-3 p-3 bg-bg-dark border border-border rounded-xl">
+                <FileCode2 size={16} className="text-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-text-primary text-sm font-medium truncate">{file.name}</p>
+                  <p className="text-text-muted text-xs">{(file.size / 1024).toFixed(1)} KB</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = ""; }}
+                  className="p-1 hover:bg-bg-card rounded text-text-muted hover:text-red-400"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="w-full border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-8 text-center transition-colors group"
+              >
+                <Upload size={24} className="text-text-muted group-hover:text-primary mx-auto mb-2" />
+                <p className="text-text-muted text-sm">اسحب ملفاً هنا أو اضغط للاختيار</p>
+                <p className="text-text-muted text-xs mt-1">
+                  .py .js .ts .php .java .html .env .json .yml — حتى 5MB
+                </p>
+              </button>
+            )}
           </div>
+        ) : (
+          /* Text Target */
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">الهدف</label>
+            <input
+              type="text"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              placeholder={config.placeholder}
+              className="w-full bg-bg-dark border border-border rounded-xl px-4 py-3 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary text-sm"
+              dir="ltr"
+            />
+          </div>
+        )}
+
+        {/* Extra field (e.g. auth header for API scan) */}
+        {config.hasExtra && (
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              {config.hasExtra.label}
+            </label>
+            <input
+              type="text"
+              value={extra}
+              onChange={(e) => setExtra(e.target.value)}
+              placeholder={config.hasExtra.placeholder}
+              className="w-full bg-bg-dark border border-border rounded-xl px-4 py-3 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary text-sm"
+              dir="ltr"
+            />
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+            <AlertTriangle size={14} className="text-red-400 shrink-0" />
+            <p className="text-red-400 text-xs">{error}</p>
+          </div>
+        )}
+
+        {/* Disclaimer */}
+        <div className="flex gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
+          <Shield size={14} className="text-primary shrink-0 mt-0.5" />
+          <p className="text-xs text-text-muted">
+            يُجرى الفحص بشكل آمن ومسؤول. لا تفحص إلا أهدافاً تملكها أو لديك تصريح صريح بفحصها.
+          </p>
         </div>
 
         <button
           type="submit"
-          disabled={mut.isPending || !target.trim()}
+          disabled={mut.isPending || (!config.isFile && !target.trim()) || (config.isFile && !file)}
           className="w-full bg-primary text-bg-dark font-semibold py-3 rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors"
         >
           {mut.isPending ? "جاري إنشاء الفحص..." : "ابدأ الفحص"}

@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,12 +19,16 @@ from app.models.user import User
 
 router = APIRouter(prefix="/scans", tags=["Scans"])
 
+ALLOWED_SCAN_TYPES = {"url", "domain", "file", "api", "github", "email"}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+
 
 # ── Request Body ────────────────────────────────────────────────
 
 class CreateScanRequest(BaseModel):
-    scan_type: str  # url | domain (Phase 7); more in Phase 8
+    scan_type: str
     target: str
+    extra: Optional[str] = None  # e.g. auth header for API scan
 
 
 # ── الفحص في الخلفية ─────────────────────────────────────────────
@@ -55,10 +59,29 @@ async def _run_scan(scan_id: int, scan_type: str, target: str) -> None:
             if scan_type == "url":
                 from app.core.scanner.url_scanner import scan_url
                 result = await scan_url(target, progress_cb=progress_cb)
-            elif scan_type == "domain":
-                from app.core.scanner.url_scanner import scan_url
-                url = target if target.startswith("http") else f"https://{target}"
-                result = await scan_url(url, progress_cb=progress_cb)
+            elif scan_type == "domain" or scan_type == "email":
+                from app.core.scanner.domain_scanner import scan_domain
+                result = await scan_domain(target, progress_cb=progress_cb)
+            elif scan_type == "api":
+                from app.core.scanner.api_scanner import scan_api
+                # extra = optional auth header
+                extra = None
+                async with AsyncSessionLocal() as _db:
+                    s = await _db.get(Scan, scan_id)
+                    if s and s.error_msg:
+                        extra = s.error_msg  # reuse field temporarily
+                result = await scan_api(target, auth_header=extra, progress_cb=progress_cb)
+            elif scan_type == "github":
+                from app.core.scanner.github_scanner import scan_github
+                result = await scan_github(target, progress_cb=progress_cb)
+            elif scan_type == "file":
+                # target contains: "filename|||content"
+                if "|||" in target:
+                    filename, content = target.split("|||", 1)
+                else:
+                    filename, content = "unknown.txt", target
+                from app.core.scanner.file_scanner import scan_file
+                result = await scan_file(filename, content, progress_cb=progress_cb)
             else:
                 raise ValueError(f"Unsupported scan_type: {scan_type}")
 
@@ -113,8 +136,7 @@ async def create_scan(
     db: AsyncSession = Depends(get_db),
 ):
     """إنشاء فحص جديد — يُشغَّل في الخلفية"""
-    allowed_types = {"url", "domain"}
-    if body.scan_type not in allowed_types:
+    if body.scan_type not in ALLOWED_SCAN_TYPES:
         raise HTTPException(400, detail={"message": f"نوع الفحص غير مدعوم: {body.scan_type}"})
 
     target = body.target.strip()
@@ -153,6 +175,53 @@ async def create_scan(
         "status": "queued",
         "message": "تم إنشاء الفحص وهو قيد التشغيل",
     }
+
+
+@router.post("/upload")
+async def upload_file_scan(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    user: User = Depends(get_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """رفع ملف وفحصه أمنياً"""
+    if file.size and file.size > MAX_FILE_SIZE:
+        raise HTTPException(413, detail={"message": "حجم الملف يتجاوز الحد المسموح (5MB)"})
+
+    plan = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
+    limiter = UsageLimiter(db, user.id, plan)
+    check = await limiter.check_scan()
+    if not check.allowed:
+        raise HTTPException(429, detail={"message": check.message_ar, "reason": check.reason})
+    await limiter.record_scan()
+
+    try:
+        raw = await file.read()
+        # Try UTF-8 decode, fall back to latin-1
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            content = raw.decode("latin-1")
+    except Exception:
+        raise HTTPException(400, detail={"message": "تعذّر قراءة الملف"})
+
+    filename = file.filename or "unknown"
+    target = f"{filename}|||{content[:500_000]}"  # max 500KB content stored
+
+    scan = Scan(
+        user_id=user.id,
+        scan_type="file",
+        target=target,
+        target_display=filename,
+        status="queued",
+    )
+    db.add(scan)
+    await db.commit()
+    await db.refresh(scan)
+
+    background_tasks.add_task(_run_scan, scan.id, "file", target)
+
+    return {"success": True, "scan_id": scan.id, "status": "queued", "filename": filename}
 
 
 @router.get("/")
