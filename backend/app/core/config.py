@@ -3,7 +3,6 @@
 كل الأسرار هنا تأتي من البيئة، مش مكتوبة مباشرةً في الكود
 """
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
 from typing import List, Optional
 
 
@@ -76,23 +75,15 @@ class Settings(BaseSettings):
     ENABLE_BYOK: bool = False
 
     # ── CORS ────────────────────────────────────────────────────
-    ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-    ]
-
-    @field_validator("ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def parse_origins(cls, v):
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
+    # Plain string so pydantic-settings never tries to JSON-parse it
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 
     @property
     def all_allowed_origins(self) -> List[str]:
-        origins = list(self.ALLOWED_ORIGINS)
-        if self.FRONTEND_URL and self.FRONTEND_URL not in origins:
-            origins.append(self.FRONTEND_URL.rstrip("/"))
+        origins = [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
+        frontend = self.FRONTEND_URL.rstrip("/")
+        if frontend and frontend not in origins:
+            origins.append(frontend)
         return origins
 
     class Config:
