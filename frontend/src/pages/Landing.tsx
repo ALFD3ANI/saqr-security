@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Shield, Zap, Globe, FileSearch, Brain, BarChart3,
@@ -31,7 +32,12 @@ const STATS = [
 
 export default function Landing() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const isAr = i18n.language === "ar";
+
+  const scrollTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
 
   return (
     <div className="min-h-screen bg-bg-dark text-white">
@@ -97,11 +103,11 @@ export default function Landing() {
             transition={{ duration: 0.6, delay: 0.3 }}
             className="flex flex-col sm:flex-row gap-4 justify-center mb-16"
           >
-            <button className="group flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 text-white font-semibold px-8 py-4 rounded-xl transition-all duration-200 shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 hover:-translate-y-0.5">
+            <button onClick={() => navigate("/register")} className="group flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 text-white font-semibold px-8 py-4 rounded-xl transition-all duration-200 shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 hover:-translate-y-0.5">
               {t("hero.cta")}
               <ArrowRight size={18} className="group-hover:translate-x-1 rtl:rotate-180 transition-transform" />
             </button>
-            <button className="flex items-center justify-center gap-2 border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white font-semibold px-8 py-4 rounded-xl transition-all duration-200 hover:-translate-y-0.5">
+            <button onClick={() => scrollTo("features")} className="flex items-center justify-center gap-2 border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white font-semibold px-8 py-4 rounded-xl transition-all duration-200 hover:-translate-y-0.5">
               {t("hero.ctaSecondary")}
             </button>
           </motion.div>
@@ -129,7 +135,7 @@ export default function Landing() {
       </section>
 
       {/* ── Features Section ──────────────────────────────────── */}
-      <section className="px-6 py-24 bg-surface-dark/20">
+      <section id="features" className="px-6 py-24 bg-surface-dark/20">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4">{t("features.title")}</h2>
@@ -162,7 +168,7 @@ export default function Landing() {
       </section>
 
       {/* ── Pricing Section ───────────────────────────────────── */}
-      <section className="px-6 py-24">
+      <section id="pricing" className="px-6 py-24">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4">{t("pricing.title")}</h2>
@@ -203,6 +209,7 @@ export default function Landing() {
                   )}
                 </div>
                 <button
+                  onClick={() => navigate(key === "enterprise" ? "/contact" : `/register?plan=${key}`)}
                   className={`mt-auto w-full py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
                     popular
                       ? "bg-accent hover:bg-accent-dark text-white"
@@ -216,6 +223,20 @@ export default function Landing() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── About / CTA Section ───────────────────────────────── */}
+      <section id="about" className="px-6 py-24 bg-surface-dark/20">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl font-bold text-white mb-4">{t("about.title")}</h2>
+          <p className="text-slate-400 text-lg mb-8">{t("about.desc")}</p>
+          <button
+            onClick={() => navigate("/register")}
+            className="bg-primary-500 hover:bg-primary-600 text-white font-semibold px-10 py-4 rounded-xl transition-all duration-200 shadow-lg shadow-primary-500/25 hover:-translate-y-0.5"
+          >
+            {t("hero.cta")}
+          </button>
         </div>
       </section>
 
