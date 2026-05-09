@@ -142,5 +142,9 @@
     "hasAccount": "Already have an account?",
     "pendingApproval": "Your request is under review",
     "pendingApprovalDesc": "Your request will be reviewed within 24 hours and you'll be notified upon activation"
+  },
+  "about": {
+    "title": "Why Saqr Security?",
+    "desc": "The first cybersecurity platform designed specifically for Saudi and Gulf companies, combining the power of AI with local compliance requirements."
   }
 }
