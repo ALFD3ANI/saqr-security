@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { scansApi } from "@/services/api";
 import { useAuthStore } from "@/stores/authStore";
+import { API_BASE, WS_ORIGIN } from "@/lib/config";
 import {
   ArrowLeft, Globe, CheckCircle2, XCircle, Loader2,
   ChevronDown, ChevronUp, Bot, Sparkles, Wrench, X,
@@ -97,7 +98,7 @@ function FixWizardPanel({
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     streamSSE(
-      "/api/v1/ai/fix-wizard",
+      `${API_BASE}/ai/fix-wizard`,
       {
         finding_title: finding.title_ar || finding.title,
         finding_description: finding.description,
@@ -260,7 +261,7 @@ export default function ScanDetail() {
     if (!id || !accessToken) return;
     if (data?.status === "completed" || data?.status === "failed") return;
 
-    const wsUrl = `ws://localhost:8000/api/v1/scans/${id}/progress?token=${accessToken}`;
+    const wsUrl = `${WS_ORIGIN}/api/v1/scans/${id}/progress?token=${accessToken}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -295,7 +296,7 @@ export default function ScanDetail() {
 
     try {
       await streamSSE(
-        `/api/v1/ai/analyze-scan/${id}`,
+        `${API_BASE}/ai/analyze-scan/${id}`,
         {},
         (t) => setAiText(prev => prev + t),
         () => { setAnalysisDone(true); setIsAnalyzing(false); },

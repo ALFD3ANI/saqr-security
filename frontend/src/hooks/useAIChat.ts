@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { API_BASE } from "../lib/config";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -34,7 +35,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
     try {
       const token = localStorage.getItem("access_token");
-      const resp = await fetch("/api/v1/ai/chat", {
+      const resp = await fetch(`${API_BASE}/ai/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

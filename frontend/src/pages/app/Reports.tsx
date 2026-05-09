@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { scansApi } from "@/services/api";
+import { API_BASE } from "@/lib/config";
 import {
   FileText, Bot, ExternalLink, Loader2, Sparkles,
   Globe, Network, Server, FileCode2, Github, Mail, X,
@@ -110,7 +111,7 @@ function AIReportModal({ scan, onClose }: { scan: Scan; onClose: () => void }) {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     streamSSE(
-      `/api/v1/ai/analyze-scan/${scan.id}`,
+      `${API_BASE}/ai/analyze-scan/${scan.id}`,
       {},
       (t) => setText(prev => prev + t),
       () => setDone(true),

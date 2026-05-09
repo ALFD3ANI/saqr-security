@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_admin_user
 from app.core.approval_workflow import process_approval_decision
+from app.core.email import send_approval_approved, send_approval_rejected
 from app.models.approval_request import ApprovalRequest
 from app.models.user import User
 
@@ -105,6 +106,11 @@ async def decide_approval(
         rejection_reason=body.rejection_reason,
     )
     await db.commit()
+
+    if body.decision == "approve":
+        await send_approval_approved(req.email, req.full_name, req.requested_plan or "free")
+    else:
+        await send_approval_rejected(req.email, req.full_name, body.rejection_reason or "")
 
     return {
         "success": True,

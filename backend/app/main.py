@@ -30,9 +30,8 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     """يشتغل عند بدء وإيقاف التطبيق"""
     logger.info("🦅 Saqr Security API starting...", env=settings.APP_ENV)
-    if settings.APP_ENV == "development":
-        await create_tables()
-        logger.info("Database tables created/verified")
+    await create_tables()
+    logger.info("Database tables created/verified")
     yield
     logger.info("🦅 Saqr Security API stopping...")
 
@@ -49,7 +48,7 @@ app = FastAPI(
 # ── Middleware: CORS (السماح للـ Frontend بالتواصل مع الـ Backend) ──────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=settings.all_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

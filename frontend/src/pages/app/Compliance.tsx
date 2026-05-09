@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import api, { scansApi } from "@/services/api";
+import { API_BASE } from "@/lib/config";
 import {
   Shield, CheckCircle2, XCircle, AlertTriangle, Minus,
   ChevronDown, ChevronUp, Bot, Sparkles, Loader2, X,
@@ -257,7 +258,7 @@ function AIPanel({ scanId, onClose }: { scanId: number; onClose: () => void }) {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     streamSSE(
-      `/api/v1/compliance/ai-analysis/${scanId}`,
+      `${API_BASE}/compliance/ai-analysis/${scanId}`,
       {},
       (t) => setText(prev => prev + t),
       () => setDone(true),

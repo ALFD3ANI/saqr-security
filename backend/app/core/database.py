@@ -12,7 +12,12 @@ from app.core.config import settings
 
 def _build_db_url() -> str:
     url = settings.DATABASE_URL
-    # لو الـ URL يبدأ بـ postgresql، نحوّله لـ SQLite في حالة عدم وجود PostgreSQL
+    # Supabase/Render give postgres:// or postgresql:// → convert for asyncpg
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgresql://") and "+asyncpg" not in url:
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    # Dev: use SQLite when no real PostgreSQL is configured
     if url.startswith("postgresql") and settings.APP_ENV == "development":
         db_path = os.path.join(os.path.dirname(__file__), "..", "..", "saqr_dev.db")
         db_path = os.path.abspath(db_path)

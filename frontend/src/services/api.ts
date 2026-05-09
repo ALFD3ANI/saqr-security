@@ -3,9 +3,10 @@
  * يُضيف الـ token تلقائياً ويعالج انتهاء الجلسة
  */
 import axios, { AxiosError } from "axios";
+import { API_BASE } from "../lib/config";
 
 const api = axios.create({
-  baseURL: "/api/v1",
+  baseURL: API_BASE,
   timeout: 30000,
   headers: { "Content-Type": "application/json" },
 });

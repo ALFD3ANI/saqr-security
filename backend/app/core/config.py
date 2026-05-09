@@ -85,8 +85,15 @@ class Settings(BaseSettings):
     @classmethod
     def parse_origins(cls, v):
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
+
+    @property
+    def all_allowed_origins(self) -> List[str]:
+        origins = list(self.ALLOWED_ORIGINS)
+        if self.FRONTEND_URL and self.FRONTEND_URL not in origins:
+            origins.append(self.FRONTEND_URL.rstrip("/"))
+        return origins
 
     class Config:
         env_file = ".env"

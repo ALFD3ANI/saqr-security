@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_active_user, get_current_user
+from app.core.email import send_welcome_email
 from app.core.security import (
     create_access_token, create_refresh_token, decode_token,
     generate_secure_token, generate_totp_secret, get_totp_uri,
@@ -80,6 +81,8 @@ async def register(
     await db.refresh(user)
 
     logger.info("user_registered", user_id=user.id, plan=body.plan, status=initial_status)
+
+    await send_welcome_email(user.email, user.full_name)
 
     # رسائل الرد حسب الحالة
     if initial_status == AccountStatus.ACTIVE:
