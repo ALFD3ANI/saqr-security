@@ -3,13 +3,14 @@ Admin — إدارة المستخدمين
 """
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_admin_user
-from app.models.user import User, AccountStatus, UserPlan
+from app.core.deps import get_admin_user, get_super_admin
+from app.core.security import hash_password
+from app.models.user import User, AccountStatus, UserPlan, UserRole
 
 router = APIRouter(prefix="/admin/users", tags=["Admin"])
 
@@ -65,10 +66,87 @@ async def get_user(
     return _serialize(user)
 
 
+class CreateAdminBody(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    role: str = "ADMIN"        # ADMIN | SUPER_ADMIN
+    plan: str = "ENTERPRISE"
+    company_name: Optional[str] = None
+    phone: Optional[str] = None
+
+
+@router.post("/create-admin")
+async def create_admin_account(
+    body: CreateAdminBody,
+    admin=Depends(get_super_admin),   # SUPER_ADMIN فقط
+    db: AsyncSession = Depends(get_db),
+):
+    """إنشاء حساب أدمن مباشرة — SUPER_ADMIN فقط"""
+    existing = await db.execute(select(User).where(User.email == body.email.lower()))
+    if existing.scalar_one_or_none():
+        raise HTTPException(409, detail={"message": "الإيميل مستخدم بالفعل"})
+
+    try:
+        role = UserRole(body.role)
+    except ValueError:
+        raise HTTPException(400, detail={"message": f"رتبة غير صالحة: {body.role}. المتاح: ADMIN, SUPER_ADMIN"})
+
+    try:
+        plan = UserPlan(body.plan)
+    except ValueError:
+        plan = UserPlan.ENTERPRISE
+
+    new_admin = User(
+        email=body.email.lower(),
+        hashed_password=hash_password(body.password),
+        full_name=body.full_name,
+        phone=body.phone,
+        company_name=body.company_name,
+        role=role,
+        status=AccountStatus.ACTIVE,
+        plan=plan,
+        email_verified=True,
+        totp_enabled=False,
+        failed_login_attempts=0,
+        preferred_language="ar",
+    )
+    db.add(new_admin)
+    await db.commit()
+    await db.refresh(new_admin)
+    return {"success": True, "user": _serialize(new_admin)}
+
+
+class SetRoleBody(BaseModel):
+    role: str   # USER | ADMIN | SUPER_ADMIN
+
+
+@router.post("/{user_id}/set-role")
+async def set_user_role(
+    user_id: int,
+    body: SetRoleBody,
+    admin=Depends(get_super_admin),   # SUPER_ADMIN فقط
+    db: AsyncSession = Depends(get_db),
+):
+    """تغيير رتبة المستخدم — SUPER_ADMIN فقط"""
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, detail={"message": "المستخدم غير موجود"})
+    if user.id == admin.id:
+        raise HTTPException(400, detail={"message": "لا تقدر تغيير رتبتك الخاصة"})
+
+    try:
+        user.role = UserRole(body.role)
+    except ValueError:
+        raise HTTPException(400, detail={"message": f"رتبة غير صالحة: {body.role}"})
+
+    await db.commit()
+    return {"success": True, "message": f"تم تغيير الرتبة إلى {body.role}", "user": _serialize(user)}
+
+
 class UpdateUserBody(BaseModel):
     status: Optional[str] = None
     plan:   Optional[str] = None
-    role:   Optional[str] = None
     notes:  Optional[str] = None
 
 
