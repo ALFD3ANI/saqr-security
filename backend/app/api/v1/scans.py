@@ -1,0 +1,314 @@
+"""
+Scans API — إنشاء وإدارة الفحوصات الأمنية
+"""
+import asyncio
+import json
+from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db, AsyncSessionLocal
+from app.core.deps import get_active_user, get_current_user
+from app.core.usage_limiter import UsageLimiter
+from app.models.scan import Scan
+from app.models.user import User
+
+router = APIRouter(prefix="/scans", tags=["Scans"])
+
+
+# ── Request Body ────────────────────────────────────────────────
+
+class CreateScanRequest(BaseModel):
+    scan_type: str  # url | domain (Phase 7); more in Phase 8
+    target: str
+
+
+# ── الفحص في الخلفية ─────────────────────────────────────────────
+
+async def _run_scan(scan_id: int, scan_type: str, target: str) -> None:
+    """يشتغل في Background Task — يُحدّث الـ DB مع التقدم"""
+    async with AsyncSessionLocal() as db:
+        scan = await db.get(Scan, scan_id)
+        if not scan:
+            return
+
+        scan.status = "running"
+        scan.started_at = datetime.now(timezone.utc)
+        await db.commit()
+
+        start_ms = datetime.now(timezone.utc).timestamp() * 1000
+
+        try:
+            result = None
+
+            async def progress_cb(pct: int, msg: str):
+                async with AsyncSessionLocal() as _db:
+                    s = await _db.get(Scan, scan_id)
+                    if s:
+                        s.summary = json.dumps({"progress": pct, "message": msg})
+                        await _db.commit()
+
+            if scan_type == "url":
+                from app.core.scanner.url_scanner import scan_url
+                result = await scan_url(target, progress_cb=progress_cb)
+            elif scan_type == "domain":
+                from app.core.scanner.url_scanner import scan_url
+                url = target if target.startswith("http") else f"https://{target}"
+                result = await scan_url(url, progress_cb=progress_cb)
+            else:
+                raise ValueError(f"Unsupported scan_type: {scan_type}")
+
+            # تحديث DB بالنتائج
+            scan = await db.get(Scan, scan_id)
+            if scan:
+                scan.status = "completed" if not result.error else "failed"
+                scan.error_msg = result.error
+                scan.risk_score = result.risk_score
+                scan.risk_level = result.risk_level
+                scan.findings = json.dumps([
+                    {
+                        "severity": f.severity,
+                        "category": f.category,
+                        "title": f.title,
+                        "title_ar": f.title_ar,
+                        "description": f.description,
+                        "recommendation": f.recommendation,
+                        "evidence": f.evidence,
+                        "cwe_id": f.cwe_id,
+                        "cvss_score": f.cvss_score,
+                    }
+                    for f in result.findings
+                ])
+                scan.summary = json.dumps(result.summary)
+                scan.total_findings   = result.summary.get("total", 0)
+                scan.critical_count   = result.summary.get("critical", 0)
+                scan.high_count       = result.summary.get("high", 0)
+                scan.medium_count     = result.summary.get("medium", 0)
+                scan.low_count        = result.summary.get("low", 0)
+                scan.info_count       = result.summary.get("info", 0)
+                scan.completed_at     = datetime.now(timezone.utc)
+                scan.duration_ms      = int(datetime.now(timezone.utc).timestamp() * 1000 - start_ms)
+                await db.commit()
+
+        except Exception as e:
+            scan = await db.get(Scan, scan_id)
+            if scan:
+                scan.status = "failed"
+                scan.error_msg = str(e)[:500]
+                scan.completed_at = datetime.now(timezone.utc)
+                await db.commit()
+
+
+# ── REST Endpoints ───────────────────────────────────────────────
+
+@router.post("/")
+async def create_scan(
+    body: CreateScanRequest,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """إنشاء فحص جديد — يُشغَّل في الخلفية"""
+    allowed_types = {"url", "domain"}
+    if body.scan_type not in allowed_types:
+        raise HTTPException(400, detail={"message": f"نوع الفحص غير مدعوم: {body.scan_type}"})
+
+    target = body.target.strip()
+    if not target:
+        raise HTTPException(400, detail={"message": "الهدف لا يمكن أن يكون فارغاً"})
+
+    # فحص حد الاستهلاك
+    plan = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
+    limiter = UsageLimiter(db, user.id, plan)
+    check = await limiter.check_scan()
+    if not check.allowed:
+        raise HTTPException(429, detail={"message": check.message_ar, "reason": check.reason})
+
+    # سجّل الاستهلاك
+    await limiter.record_scan()
+
+    # إنشاء سجل الفحص
+    display = target[:100]
+    scan = Scan(
+        user_id=user.id,
+        scan_type=body.scan_type,
+        target=target,
+        target_display=display,
+        status="queued",
+    )
+    db.add(scan)
+    await db.commit()
+    await db.refresh(scan)
+
+    # شغّل الفحص في الخلفية
+    background_tasks.add_task(_run_scan, scan.id, body.scan_type, target)
+
+    return {
+        "success": True,
+        "scan_id": scan.id,
+        "status": "queued",
+        "message": "تم إنشاء الفحص وهو قيد التشغيل",
+    }
+
+
+@router.get("/")
+async def list_scans(
+    scan_type: Optional[str] = Query(None),
+    status: Optional[str]    = Query(None),
+    limit:  int = Query(20, le=100),
+    offset: int = Query(0),
+    user: User = Depends(get_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """قائمة فحوصات المستخدم"""
+    q = select(Scan).where(Scan.user_id == user.id).order_by(Scan.created_at.desc())
+    if scan_type: q = q.where(Scan.scan_type == scan_type)
+    if status:    q = q.where(Scan.status == status)
+
+    rows = await db.execute(q.offset(offset).limit(limit))
+    scans = rows.scalars().all()
+
+    from sqlalchemy import func
+    total = await db.scalar(
+        select(func.count(Scan.id)).where(Scan.user_id == user.id)
+    ) or 0
+
+    return {
+        "total": total,
+        "scans": [_serialize_scan(s) for s in scans],
+    }
+
+
+@router.get("/{scan_id}")
+async def get_scan(
+    scan_id: int,
+    user: User = Depends(get_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """تفاصيل فحص واحد"""
+    scan = await db.get(Scan, scan_id)
+    if not scan or scan.user_id != user.id:
+        raise HTTPException(404, detail={"message": "الفحص غير موجود"})
+    return _serialize_scan(scan, include_findings=True)
+
+
+@router.delete("/{scan_id}")
+async def delete_scan(
+    scan_id: int,
+    user: User = Depends(get_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    scan = await db.get(Scan, scan_id)
+    if not scan or scan.user_id != user.id:
+        raise HTTPException(404, detail={"message": "الفحص غير موجود"})
+    await db.delete(scan)
+    await db.commit()
+    return {"success": True}
+
+
+# ── WebSocket Progress ──────────────────────────────────────────
+
+@router.websocket("/{scan_id}/progress")
+async def scan_progress_ws(
+    websocket: WebSocket,
+    scan_id: int,
+    token: Optional[str] = Query(None),
+):
+    """
+    WebSocket لمتابعة تقدم الفحص لحظةً بلحظة.
+    يُرسل تحديثاً كل ثانية حتى ينتهي الفحص.
+    """
+    await websocket.accept()
+
+    # التحقق من الـ token
+    user = None
+    if token:
+        try:
+            from app.core.security import decode_token
+            from app.core.database import AsyncSessionLocal
+            payload = decode_token(token)
+            user_id = int(payload.get("sub", 0))
+            async with AsyncSessionLocal() as db:
+                user = await db.get(User, user_id)
+        except Exception:
+            pass
+
+    if not user:
+        await websocket.send_json({"error": "unauthorized"})
+        await websocket.close(1008)
+        return
+
+    try:
+        while True:
+            async with AsyncSessionLocal() as db:
+                scan = await db.get(Scan, scan_id)
+
+            if not scan or scan.user_id != user.id:
+                await websocket.send_json({"error": "not_found"})
+                break
+
+            summary = {}
+            if scan.summary:
+                try:
+                    summary = json.loads(scan.summary)
+                except Exception:
+                    pass
+
+            payload = {
+                "scan_id": scan_id,
+                "status": scan.status,
+                "progress": summary.get("progress", 0) if scan.status == "running" else (100 if scan.status == "completed" else 0),
+                "message": summary.get("message", ""),
+                "risk_score": scan.risk_score,
+                "risk_level": scan.risk_level,
+                "total_findings": scan.total_findings,
+                "critical_count": scan.critical_count,
+                "high_count": scan.high_count,
+                "medium_count": scan.medium_count,
+            }
+
+            await websocket.send_json(payload)
+
+            if scan.status in ("completed", "failed"):
+                break
+
+            await asyncio.sleep(1)
+
+    except WebSocketDisconnect:
+        pass
+
+
+# ── Serializer ──────────────────────────────────────────────────
+
+def _serialize_scan(s: Scan, include_findings: bool = False) -> dict:
+    data = {
+        "id": s.id,
+        "scan_type": s.scan_type,
+        "target": s.target_display or s.target,
+        "status": s.status,
+        "risk_score": s.risk_score,
+        "risk_level": s.risk_level,
+        "total_findings": s.total_findings,
+        "critical_count": s.critical_count,
+        "high_count": s.high_count,
+        "medium_count": s.medium_count,
+        "low_count": s.low_count,
+        "info_count": s.info_count,
+        "duration_ms": s.duration_ms,
+        "error_msg": s.error_msg,
+        "started_at": s.started_at.isoformat() if s.started_at else None,
+        "completed_at": s.completed_at.isoformat() if s.completed_at else None,
+        "created_at": s.created_at.isoformat(),
+    }
+    if include_findings:
+        try:
+            data["findings"] = json.loads(s.findings) if s.findings else []
+            data["summary"]  = json.loads(s.summary)  if s.summary  else {}
+        except Exception:
+            data["findings"] = []
+            data["summary"]  = {}
+    return data

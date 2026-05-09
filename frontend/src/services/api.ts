@@ -86,6 +86,15 @@ export const authApi = {
   disable2FA: (totp_code: string) => api.post("/auth/2fa/disable", { totp_code }),
 };
 
+// ── Scans API ─────────────────────────────────────────────────
+export const scansApi = {
+  create:  (scan_type: string, target: string) => api.post("/scans/", { scan_type, target }),
+  list:    (params?: { scan_type?: string; status?: string; limit?: number; offset?: number }) =>
+    api.get("/scans/", { params }),
+  get:     (id: number) => api.get(`/scans/${id}`),
+  delete:  (id: number) => api.delete(`/scans/${id}`),
+};
+
 // ── Admin API ─────────────────────────────────────────────────
 export const adminApi = {
   getStats:       () => api.get("/admin/dashboard/stats"),

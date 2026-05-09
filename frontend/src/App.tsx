@@ -24,6 +24,9 @@ import Dashboard       from "@/pages/app/Dashboard";
 import Billing         from "@/pages/app/Billing";
 import PlaceholderPage from "@/pages/app/PlaceholderPage";
 import Pricing         from "@/pages/public/Pricing";
+import Scans           from "@/pages/app/Scans";
+import NewScan         from "@/pages/app/NewScan";
+import ScanDetail      from "@/pages/app/ScanDetail";
 
 // Admin pages
 import AdminDashboard  from "@/pages/admin/AdminDashboard";
@@ -87,7 +90,9 @@ export default function App() {
           {/* ── صفحات التطبيق (محمية + AppLayout) ──────── */}
           <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>
             <Route path="/dashboard"  element={<Dashboard />} />
-            <Route path="/scans"      element={<PlaceholderPage title="الفحوصات" phase={7} />} />
+            <Route path="/scans"      element={<Scans />} />
+            <Route path="/scans/new"  element={<NewScan />} />
+            <Route path="/scans/:id"  element={<ScanDetail />} />
             <Route path="/reports"    element={<PlaceholderPage title="التقارير" phase={10} />} />
             <Route path="/compliance" element={<PlaceholderPage title="الامتثال" phase={11} />} />
             <Route path="/ai"         element={<PlaceholderPage title="مساعد AI" phase={9} />} />
