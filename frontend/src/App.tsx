@@ -28,6 +28,7 @@ import Scans           from "@/pages/app/Scans";
 import NewScan         from "@/pages/app/NewScan";
 import ScanDetail      from "@/pages/app/ScanDetail";
 import AIAssistant     from "@/pages/app/AIAssistant";
+import Reports         from "@/pages/app/Reports";
 
 // Admin pages
 import AdminDashboard  from "@/pages/admin/AdminDashboard";
@@ -94,7 +95,7 @@ export default function App() {
             <Route path="/scans"      element={<Scans />} />
             <Route path="/scans/new"  element={<NewScan />} />
             <Route path="/scans/:id"  element={<ScanDetail />} />
-            <Route path="/reports"    element={<PlaceholderPage title="التقارير" phase={10} />} />
+            <Route path="/reports"    element={<Reports />} />
             <Route path="/compliance" element={<PlaceholderPage title="الامتثال" phase={11} />} />
             <Route path="/ai"          element={<AIAssistant />} />
             <Route path="/billing"    element={<Billing />} />

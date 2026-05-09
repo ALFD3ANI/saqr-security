@@ -16,10 +16,11 @@ from app.core.database import get_db, AsyncSessionLocal
 from app.core.deps import get_active_user
 from app.core.config import PLAN_LIMITS
 from app.core.ai.client import stream_chat
-from app.core.ai.prompts import get_security_assistant_prompt, get_fix_wizard_prompt
+from app.core.ai.prompts import get_security_assistant_prompt, get_fix_wizard_prompt, get_scan_analysis_prompt
 from app.models.user import User
 from app.models.ai_conversation import AIConversation
 from app.models.usage import UserUsage, DailyUsage
+from app.models.scan import Scan
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -40,6 +41,11 @@ class FixWizardRequest(BaseModel):
     finding_title:       str
     finding_description: str
     evidence:            Optional[str] = None
+
+
+class SearchRequest(BaseModel):
+    query:   str
+    context: Optional[str] = None
 
 
 # ── الوصول إلى حدود الخطة ──────────────────────────────────────
@@ -262,6 +268,134 @@ async def fix_wizard(
     )
 
     messages = [{"role": "user", "content": "Please provide the detailed fix."}]
+
+    async def generate():
+        input_t = output_t = 0
+        cost = 0.0
+        async for chunk in stream_chat(messages, model_key, max_tokens, system_prompt):
+            if "text" in chunk:
+                yield f"data: {json.dumps({'text': chunk['text']})}\n\n"
+            elif "done" in chunk:
+                input_t  = chunk.get("input_tokens", 0)
+                output_t = chunk.get("output_tokens", 0)
+                cost     = chunk.get("cost_usd", 0.0)
+                yield f"data: {json.dumps({'done': True})}\n\n"
+            elif "error" in chunk:
+                yield f"data: {json.dumps({'error': chunk['error']})}\n\n"
+                return
+        await _record_ai_usage(user.id, input_t, output_t, cost)
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# ── Scan Analysis ────────────────────────────────────────────
+
+@router.post("/analyze-scan/{scan_id}")
+async def analyze_scan(
+    scan_id: int,
+    user: User = Depends(get_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """تحليل نتائج الفحص بالذكاء الاصطناعي (Streaming)"""
+    await _check_ai_limit(db, user)
+
+    scan = await db.get(Scan, scan_id)
+    if not scan or scan.user_id != user.id:
+        raise HTTPException(404, detail={"message": "الفحص غير موجود"})
+    if scan.status != "completed":
+        raise HTTPException(400, detail={"message": "الفحص لم يكتمل بعد"})
+
+    model_key = _choose_model(user, "sonnet")
+
+    findings: list[dict] = []
+    if scan.findings:
+        try:
+            findings = json.loads(scan.findings)
+        except Exception:
+            findings = []
+
+    findings_summary = {
+        "total":      scan.total_findings,
+        "critical":   scan.critical_count,
+        "high":       scan.high_count,
+        "medium":     scan.medium_count,
+        "low":        scan.low_count,
+        "risk_score": scan.risk_score,
+        "risk_level": scan.risk_level,
+    }
+
+    top_findings_text = "\n".join([
+        f"- [{f.get('severity','').upper()}] {f.get('title_ar') or f.get('title','')}: {f.get('description','')[:180]}"
+        for f in findings[:12]
+    ])
+
+    system_prompt = get_scan_analysis_prompt(scan.scan_type, findings_summary)
+
+    user_message = f"""الهدف: {scan.target_display or scan.target}
+نوع الفحص: {scan.scan_type}
+درجة الخطر: {scan.risk_score}/100 ({scan.risk_level})
+
+أبرز النتائج:
+{top_findings_text or "لا توجد نتائج"}
+
+قدّم تحليلاً أمنياً شاملاً باللغة العربية يشمل:
+1. **ملخص تنفيذي** - وصف موجز للوضع الأمني العام
+2. **أخطر المشكلات** - شرح للثغرات الحرجة والعالية وتأثيرها
+3. **إجراءات فورية** - الخطوات الأولى التي يجب اتخاذها الآن
+4. **تأثير على الامتثال** - ارتباط النتائج بمتطلبات NCA ECC أو SAMA CSF أو PDPL
+5. **توصية ختامية** - ملاحظة ختامية للفريق التقني"""
+
+    messages = [{"role": "user", "content": user_message}]
+
+    async def generate():
+        input_t = output_t = 0
+        cost = 0.0
+        async for chunk in stream_chat(messages, model_key, 2048, system_prompt):
+            if "text" in chunk:
+                yield f"data: {json.dumps({'text': chunk['text']})}\n\n"
+            elif "done" in chunk:
+                input_t  = chunk.get("input_tokens", 0)
+                output_t = chunk.get("output_tokens", 0)
+                cost     = chunk.get("cost_usd", 0.0)
+                yield f"data: {json.dumps({'done': True})}\n\n"
+            elif "error" in chunk:
+                yield f"data: {json.dumps({'error': chunk['error']})}\n\n"
+                return
+        await _record_ai_usage(user.id, input_t, output_t, cost)
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# ── Smart Search ──────────────────────────────────────────────
+
+@router.post("/search")
+async def ai_search(
+    body: SearchRequest,
+    user: User = Depends(get_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """بحث ذكي في قاعدة معرفة الأمن السيبراني (Streaming)"""
+    await _check_ai_limit(db, user)
+
+    plan      = _get_plan_str(user)
+    model_key = _choose_model(user, "haiku")
+    max_tokens = PLAN_LIMITS[plan]["max_message_tokens"]
+
+    lang = "ar" if any(ord(c) > 0x600 for c in body.query) else "en"
+    system_prompt = (
+        "أنت محرك بحث متخصص في الأمن السيبراني للشركات السعودية والخليجية. "
+        "عندما يبحث المستخدم عن موضوع أمني قدّم: تعريفاً واضحاً، أهم المخاطر، "
+        "أفضل الممارسات، وارتباطه بمعايير NCA ECC/SAMA CSF/PDPL/ISO 27001 إن وجد. "
+        "استخدم Markdown للتنسيق. أجب بلغة السؤال."
+        if lang == "ar" else
+        "You are a cybersecurity knowledge search engine. For any security topic provide: "
+        "a clear definition, key risks, best practices, and relevant compliance standards "
+        "(NCA ECC, SAMA CSF, PDPL, ISO 27001). Use Markdown. Answer in the query language."
+    )
+
+    messages = [{"role": "user", "content": body.query}]
 
     async def generate():
         input_t = output_t = 0
