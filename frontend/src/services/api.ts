@@ -81,6 +81,26 @@ export const authApi = {
   disable2FA: (totp_code: string) => api.post("/auth/2fa/disable", { totp_code }),
 };
 
+// ── Admin API ─────────────────────────────────────────────────
+export const adminApi = {
+  getStats:       () => api.get("/admin/dashboard/stats"),
+
+  listUsers: (params?: { search?: string; status?: string; plan?: string; limit?: number; offset?: number }) =>
+    api.get("/admin/users/", { params }),
+  getUser:        (id: number) => api.get(`/admin/users/${id}`),
+  updateUser:     (id: number, data: { status?: string; plan?: string; role?: string; notes?: string }) =>
+    api.patch(`/admin/users/${id}`, data),
+  suspendUser:    (id: number) => api.post(`/admin/users/${id}/suspend`),
+  activateUser:   (id: number) => api.post(`/admin/users/${id}/activate`),
+  banUser:        (id: number) => api.post(`/admin/users/${id}/ban`),
+
+  listApprovals: (params?: { status?: string; limit?: number; offset?: number }) =>
+    api.get("/admin/approvals/", { params }),
+  getApproval:    (id: number) => api.get(`/admin/approvals/${id}`),
+  decide:         (id: number, decision: string, notes?: string, rejection_reason?: string) =>
+    api.post(`/admin/approvals/${id}/decide`, { decision, notes, rejection_reason }),
+};
+
 // ── Types ─────────────────────────────────────────────────────
 export interface RegisterPayload {
   email: string;

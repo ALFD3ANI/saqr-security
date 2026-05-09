@@ -25,6 +25,11 @@ import Billing         from "@/pages/app/Billing";
 import PlaceholderPage from "@/pages/app/PlaceholderPage";
 import Pricing         from "@/pages/public/Pricing";
 
+// Admin pages
+import AdminDashboard  from "@/pages/admin/AdminDashboard";
+import ApprovalQueue   from "@/pages/admin/ApprovalQueue";
+import UserManagement  from "@/pages/admin/UserManagement";
+
 initTheme();
 const queryClient = new QueryClient();
 
@@ -38,6 +43,13 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore();
   if (isAuthenticated && user?.status === "active") return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuthStore();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!user || !["admin", "super_admin"].includes(user.role)) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -79,9 +91,10 @@ export default function App() {
             <Route path="/billing"    element={<Billing />} />
             <Route path="/settings"   element={<PlaceholderPage title="الإعدادات" phase={12} />} />
             {/* Admin */}
-            <Route path="/admin"          element={<PlaceholderPage title="Admin Dashboard" phase={12} />} />
-            <Route path="/admin/users"    element={<PlaceholderPage title="User Management" phase={12} />} />
-            <Route path="/admin/security" element={<PlaceholderPage title="Security Center" phase={12} />} />
+            <Route path="/admin"           element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route path="/admin/approvals" element={<AdminRoute><ApprovalQueue /></AdminRoute>} />
+            <Route path="/admin/users"     element={<AdminRoute><UserManagement /></AdminRoute>} />
+            <Route path="/admin/security"  element={<AdminRoute><PlaceholderPage title="Security Center" phase={12} /></AdminRoute>} />
           </Route>
 
           {/* Pricing — متاحة للجميع وداخل AppLayout للمسجّلين */}
