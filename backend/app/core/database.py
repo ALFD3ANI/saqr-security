@@ -36,7 +36,7 @@ if not _is_sqlite:
         "pool_pre_ping": True,
         "pool_size": 5,
         "max_overflow": 10,
-        "connect_args": {"ssl": "require"},
+        "connect_args": {"ssl": True},
     }
 
 engine = create_async_engine(

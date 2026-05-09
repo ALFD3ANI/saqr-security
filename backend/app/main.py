@@ -30,8 +30,11 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     """يشتغل عند بدء وإيقاف التطبيق"""
     logger.info("🦅 Saqr Security API starting...", env=settings.APP_ENV)
-    await create_tables()
-    logger.info("Database tables created/verified")
+    try:
+        await create_tables()
+        logger.info("Database tables created/verified")
+    except Exception as e:
+        logger.error("Failed to create tables on startup", error=str(e))
     yield
     logger.info("🦅 Saqr Security API stopping...")
 
