@@ -39,17 +39,24 @@ export default function Pricing() {
 
   const handleSelect = async (planKey: string) => {
     if (!isAuthenticated) { navigate("/register"); return; }
-    if (planKey === "enterprise") { navigate("/contact"); return; }
+    if (planKey === "enterprise") { window.location.href = "mailto:sales@saqr-security.com"; return; }
+    if (planKey === "free") return;
     if (planKey === user?.plan) return;
 
     setUpgrading(planKey);
     try {
-      await subscriptionApi.upgrade(planKey, billing);
-      navigate("/dashboard");
-      window.location.reload();
+      const res = await subscriptionApi.checkout(planKey, billing);
+      const { payment_url, is_mock } = res.data;
+
+      if (is_mock) {
+        // بيئة التطوير: انتقال مباشر لصفحة النتيجة
+        window.location.href = payment_url;
+      } else {
+        // الإنتاج: Moyasar hosted page
+        window.location.href = payment_url;
+      }
     } catch (e: any) {
-      alert(e.response?.data?.detail?.message ?? "حدث خطأ");
-    } finally {
+      alert(e.response?.data?.detail?.message ?? "حدث خطأ في بدء الدفع");
       setUpgrading(null);
     }
   };

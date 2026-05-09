@@ -61,7 +61,12 @@ export const subscriptionApi = {
   getPlans:   () => api.get("/subscriptions/plans"),
   upgrade:    (plan: string, billing: string) =>
     api.post("/subscriptions/upgrade", { plan, billing }),
+  checkout:   (plan: string, billing: string) =>
+    api.post("/subscriptions/checkout", { plan, billing }),
+  verifyPayment: (moyasarId: string) =>
+    api.post(`/subscriptions/payment/${moyasarId}/verify`),
   getHistory: () => api.get("/subscriptions/history"),
+  getInvoices: () => api.get("/subscriptions/invoices"),
 };
 
 // ── Auth API ─────────────────────────────────────────────────

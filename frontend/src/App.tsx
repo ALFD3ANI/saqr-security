@@ -30,6 +30,9 @@ import AdminDashboard  from "@/pages/admin/AdminDashboard";
 import ApprovalQueue   from "@/pages/admin/ApprovalQueue";
 import UserManagement  from "@/pages/admin/UserManagement";
 
+// Payment
+import PaymentCallback from "@/pages/app/PaymentCallback";
+
 initTheme();
 const queryClient = new QueryClient();
 
@@ -99,6 +102,9 @@ export default function App() {
 
           {/* Pricing — متاحة للجميع وداخل AppLayout للمسجّلين */}
           <Route path="/pricing" element={<Pricing />} />
+
+          {/* Payment Callback — لا تحتاج AppLayout */}
+          <Route path="/payment/callback" element={<PaymentCallback />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
