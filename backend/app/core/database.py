@@ -36,7 +36,10 @@ if not _is_sqlite:
         "pool_pre_ping": True,
         "pool_size": 5,
         "max_overflow": 10,
-        "connect_args": {"ssl": True},
+        "connect_args": {
+            "ssl": True,
+            "statement_cache_size": 0,   # required for Supabase transaction pooler (PgBouncer)
+        },
     }
 
 engine = create_async_engine(
