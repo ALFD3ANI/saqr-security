@@ -112,12 +112,17 @@ async def _record_ai_usage(user_id: int, input_tokens: int, output_tokens: int, 
             )
         )
         if monthly:
-            monthly.ai_chat_messages += 1
-            monthly.ai_cost_usd += cost_usd
+            monthly.ai_chat_messages  += 1
+            monthly.ai_input_tokens   += input_tokens
+            monthly.ai_output_tokens  += output_tokens
+            monthly.ai_cost_usd       += cost_usd
         else:
             db.add(UserUsage(
                 user_id=user_id, year=now.year, month=now.month,
-                ai_chat_messages=1, ai_cost_usd=cost_usd,
+                ai_chat_messages=1,
+                ai_input_tokens=input_tokens,
+                ai_output_tokens=output_tokens,
+                ai_cost_usd=cost_usd,
             ))
 
         # Daily

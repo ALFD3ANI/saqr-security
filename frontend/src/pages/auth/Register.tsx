@@ -80,11 +80,7 @@ export default function Register() {
       });
 
       setSuccess(true);
-      if (data.plan === "free") {
-        setTimeout(() => navigate("/login"), 2000);
-      } else {
-        setTimeout(() => navigate("/pending-approval"), 2000);
-      }
+      setTimeout(() => navigate("/login"), 2000);
     } catch (err: any) {
       const detail = err.response?.data?.detail;
       setError(detail?.message || "حدث خطأ، حاول مرة أخرى");

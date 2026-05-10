@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_active_user, get_current_user
-from app.core.email import send_welcome_email
+from app.core.email import send_welcome_email, send_password_reset_email
 from app.core.security import (
     create_access_token, create_refresh_token, decode_token,
     generate_secure_token, generate_totp_secret, get_totp_uri,
@@ -258,8 +258,8 @@ async def forgot_password(
     user.password_reset_expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
     await db.commit()
 
-    # TODO: Phase 6 → إرسال الإيميل عبر SendGrid
     logger.info("password_reset_requested", user_id=user.id, token_prefix=token[:8])
+    await send_password_reset_email(user.email, user.full_name, token)
 
     return success_msg
 

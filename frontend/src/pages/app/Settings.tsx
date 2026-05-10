@@ -395,8 +395,8 @@ function PlanTab() {
       {usage && (
         <div className="bg-bg-dark border border-border rounded-2xl p-5 space-y-4">
           <h3 className="font-semibold text-text-primary text-sm">الاستهلاك هذا الشهر</h3>
-          <UsageBar label="الفحوصات" used={usage.scans_this_month ?? 0} max={cfg.scansPerMonth} />
-          <UsageBar label="رسائل AI" used={usage.ai_chat_messages ?? 0} max={cfg.aiChatPerMonth} />
+          <UsageBar label="الفحوصات" used={usage.scans_used ?? 0} max={cfg.scansPerMonth} />
+          <UsageBar label="رسائل AI" used={usage.ai_chat_used ?? 0} max={cfg.aiChatPerMonth} />
         </div>
       )}
 

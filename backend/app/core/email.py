@@ -101,6 +101,24 @@ async def send_approval_rejected(email: str, name: str, reason: str) -> None:
     await send_email(email, "بخصوص طلب التفعيل على Saqr Security", _base_template(content))
 
 
+async def send_password_reset_email(email: str, name: str, token: str) -> None:
+    """إيميل إعادة تعيين كلمة المرور"""
+    frontend = settings.FRONTEND_URL
+    content = f"""
+    <h2>إعادة تعيين كلمة المرور</h2>
+    <p>مرحباً <strong>{name}</strong>،</p>
+    <p>تلقينا طلباً لإعادة تعيين كلمة المرور لحسابك على Saqr Security.</p>
+    <p style="margin-top:20px">
+      <a href="{frontend}/forgot-password?token={token}"
+         style="background:#6366f1;color:#fff;padding:12px 28px;border-radius:10px;display:inline-block;font-weight:600">
+        إعادة تعيين كلمة المرور ←
+      </a>
+    </p>
+    <p style="margin-top:16px;font-size:13px;color:#64748b">ينتهي هذا الرابط خلال ساعة واحدة. إذا لم تطلب إعادة التعيين، تجاهل هذا الإيميل.</p>
+    """
+    await send_email(email, "إعادة تعيين كلمة المرور — Saqr Security", _base_template(content))
+
+
 async def send_welcome_email(email: str, name: str) -> None:
     """إيميل ترحيبي بعد التسجيل"""
     content = f"""
