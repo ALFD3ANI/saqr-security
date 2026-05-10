@@ -34,7 +34,7 @@ async def send_email(to: str, subject: str, html: str) -> bool:
                 },
                 timeout=10,
             )
-            return resp.status_code == 202
+            return 200 <= resp.status_code < 300
     except Exception as e:
         logger.error("Email send failed", error=str(e), to=to)
         return False

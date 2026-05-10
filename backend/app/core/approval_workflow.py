@@ -2,7 +2,7 @@
 نظام الموافقة اليدوية — حساب المخاطر والقرارات التلقائية
 """
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -150,7 +150,6 @@ async def process_approval_decision(
     now = datetime.now(timezone.utc)
 
     if decision == "approve":
-        from datetime import timedelta
         req.status = "approved"
         req.approved_by = admin_id
         req.approved_at = now

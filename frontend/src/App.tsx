@@ -47,6 +47,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user?.status === "pending_approval") return <Navigate to="/pending-approval" replace />;
+  if (user?.status === "pending_payment") return <Navigate to="/billing" replace />;
   return <>{children}</>;
 }
 

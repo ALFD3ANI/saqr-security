@@ -29,8 +29,13 @@ const SEV_CONFIG: Record<string, { label: string; color: string; bg: string; ord
   info:     { label: "معلومة", color: "text-gray-400",   bg: "bg-gray-500/10 border-gray-500/30",   order: 4 },
 };
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function renderMarkdown(text: string): string {
-  return text
+  const t = escapeHtml(text);
+  return t
     .replace(/```([\s\S]*?)```/g, '<pre class="bg-bg-dark rounded-lg p-3 text-xs overflow-x-auto my-2 whitespace-pre-wrap"><code>$1</code></pre>')
     .replace(/`([^`]+)`/g, '<code class="bg-bg-dark px-1 py-0.5 rounded text-xs font-mono">$1</code>')
     .replace(/^### (.+)$/gm, '<h3 class="font-bold text-text-primary mt-3 mb-1 text-sm">$1</h3>')

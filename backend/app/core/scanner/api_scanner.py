@@ -189,7 +189,7 @@ async def scan_api(base_url: str, auth_header: Optional[str] = None, progress_cb
                 r = await client.get(base_url)
                 responses.append(r.status_code)
 
-            if not any(r.status_code == 429 for r in [base_resp]):
+            if 429 not in responses and base_resp.status_code != 429:
                 has_rate_limit_header = any(
                     h in base_resp.headers for h in
                     ["x-ratelimit-limit", "x-rate-limit", "retry-after", "ratelimit-limit"]

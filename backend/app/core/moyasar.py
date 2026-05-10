@@ -73,7 +73,9 @@ async def get_payment(moyasar_id: str) -> dict:
 def verify_webhook_signature(payload: bytes, signature: str) -> bool:
     """التحقق من صحة توقيع Webhook"""
     if not settings.MOYASAR_WEBHOOK_SECRET:
-        return True  # dev: skip verification
+        if settings.APP_ENV == "production":
+            return False  # رفض كل webhooks بدون secret في الإنتاج
+        return True  # dev only: تجاهل التحقق
     expected = hmac.new(
         settings.MOYASAR_WEBHOOK_SECRET.encode(),
         payload,
