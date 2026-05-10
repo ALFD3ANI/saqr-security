@@ -2,7 +2,8 @@
  * Axios client موحّد لكل طلبات الـ API
  * يُضيف الـ token تلقائياً ويعالج انتهاء الجلسة
  */
-import axios, { AxiosError } from "axios";
+import axios from "axios";
+import type { AxiosError } from "axios";
 import { API_BASE } from "../lib/config";
 
 const api = axios.create({
@@ -33,7 +34,7 @@ api.interceptors.response.use(
 
       if (refreshToken) {
         try {
-          const res = await axios.post("/api/v1/auth/refresh", {
+          const res = await api.post("/auth/refresh", {
             refresh_token: refreshToken,
           });
           const { access_token, refresh_token } = res.data;

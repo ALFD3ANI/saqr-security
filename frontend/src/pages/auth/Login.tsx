@@ -43,7 +43,9 @@ export default function Login() {
       // توجيه حسب الحالة
       if (user.status === "pending_approval") {
         navigate("/pending-approval");
-      } else if (user.role === "admin" || user.role === "super_admin") {
+      } else if (user.status === "pending_payment") {
+        navigate("/billing");
+      } else if (user.role === "SUPER_ADMIN" || user.role === "ADMIN" || user.role === "admin" || user.role === "super_admin") {
         navigate("/admin");
       } else {
         navigate("/dashboard");

@@ -90,8 +90,16 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = True
 
+    def validate_production_secrets(self) -> None:
+        if self.APP_ENV == "production":
+            if self.JWT_SECRET == "change-this-super-secret-key-in-production":
+                raise RuntimeError("JWT_SECRET must be set in production")
+            if self.ENCRYPTION_KEY == "change-this-32-char-encryption-key!!":
+                raise RuntimeError("ENCRYPTION_KEY must be set in production")
+
 
 settings = Settings()
+settings.validate_production_secrets()
 
 
 # النماذج المتاحة من Anthropic

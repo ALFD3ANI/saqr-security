@@ -140,7 +140,7 @@ async def login(
     if user.totp_enabled:
         if not body.totp_code:
             raise HTTPException(
-                status_code=status.HTTP_200_OK,
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail={"error": "totp_required", "message": "أدخل رمز المصادقة الثنائية"},
             )
         if not verify_totp_code(user.totp_secret, body.totp_code):

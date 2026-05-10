@@ -51,12 +51,9 @@ async def get_dashboard_stats(
     )
 
     # ── إيرادات الشهر ───────────────────────────────────────
-    PLAN_PRICES = {"free": 0, "starter": 99, "professional": 299,
-                   "business": 999, "enterprise": 4999}
-    mrr = sum(
-        PLAN_PRICES.get(str(plan), 0) * count
-        for plan, count in plan_distribution.items()
-    )
+    from app.api.v1.subscriptions import PLAN_PRICES
+    monthly_prices = {k: v["monthly"] for k, v in PLAN_PRICES.items()}
+    mrr = sum(monthly_prices.get(str(plan), 0) * count for plan, count in plan_distribution.items())
 
     # ── استهلاك AI اليوم ────────────────────────────────────
     ai_cost_today = await db.scalar(

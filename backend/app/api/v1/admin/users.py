@@ -33,15 +33,26 @@ async def list_users(
             User.full_name.ilike(f"%{search}%"),
             User.company_name.ilike(f"%{search}%"),
         ))
+
+    status_enum = None
+    plan_enum = None
     if status:
-        q = q.where(User.status == status)
+        try:
+            status_enum = AccountStatus(status)
+            q = q.where(User.status == status_enum)
+        except ValueError:
+            pass
     if plan:
-        q = q.where(User.plan == plan)
+        try:
+            plan_enum = UserPlan(plan)
+            q = q.where(User.plan == plan_enum)
+        except ValueError:
+            pass
 
     total = await db.scalar(
         select(func.count(User.id)).where(
-            *([User.status == status] if status else []),
-            *([User.plan == plan] if plan else []),
+            *([User.status == status_enum] if status_enum else []),
+            *([User.plan == plan_enum] if plan_enum else []),
         )
     ) or 0
 
@@ -185,7 +196,7 @@ async def suspend_user(
 ):
     user = await db.get(User, user_id)
     if not user:
-        raise HTTPException(404)
+        raise HTTPException(404, detail={"message": "المستخدم غير موجود"})
     user.status = AccountStatus.SUSPENDED
     await db.commit()
     return {"success": True, "message": "تم تعليق الحساب"}
@@ -199,7 +210,7 @@ async def activate_user(
 ):
     user = await db.get(User, user_id)
     if not user:
-        raise HTTPException(404)
+        raise HTTPException(404, detail={"message": "المستخدم غير موجود"})
     user.status = AccountStatus.ACTIVE
     await db.commit()
     return {"success": True, "message": "تم تفعيل الحساب"}
@@ -213,7 +224,7 @@ async def ban_user(
 ):
     user = await db.get(User, user_id)
     if not user:
-        raise HTTPException(404)
+        raise HTTPException(404, detail={"message": "المستخدم غير موجود"})
     user.status = AccountStatus.BANNED
     await db.commit()
     return {"success": True, "message": "تم حظر الحساب"}

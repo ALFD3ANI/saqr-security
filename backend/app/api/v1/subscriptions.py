@@ -124,6 +124,9 @@ async def create_checkout(
     if new_plan == "free":
         raise HTTPException(400, detail={"message": "لا يمكن الانتقال إلى الخطة المجانية عبر الدفع"})
 
+    if body.billing not in ("monthly", "annual"):
+        raise HTTPException(400, detail={"message": "نوع الفاتورة غير صالح، يجب أن يكون monthly أو annual"})
+
     prices = PLAN_PRICES.get(new_plan, {})
     amount_sar = prices.get(body.billing, 0)
     if amount_sar == 0:

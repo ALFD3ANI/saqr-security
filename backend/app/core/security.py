@@ -44,7 +44,7 @@ def validate_password_strength(password: str) -> list[str]:
 
 # ── JWT Tokens ─────────────────────────────────────────────────
 
-def create_access_token(user_id: int, email: str, role: str) -> str:
+def create_access_token(user_id: int, email: str, role) -> str:
     """إنشاء Access Token (صالح لمدة قصيرة)"""
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.JWT_EXPIRATION_MINUTES
@@ -52,7 +52,7 @@ def create_access_token(user_id: int, email: str, role: str) -> str:
     payload = {
         "sub": str(user_id),
         "email": email,
-        "role": role,
+        "role": role.value if hasattr(role, "value") else str(role),
         "type": "access",
         "exp": expire,
         "iat": datetime.now(timezone.utc),

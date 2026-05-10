@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, WebSocket, WebSocketDisconnect, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +33,7 @@ class CreateScanRequest(BaseModel):
 
 # ── الفحص في الخلفية ─────────────────────────────────────────────
 
-async def _run_scan(scan_id: int, scan_type: str, target: str) -> None:
+async def _run_scan(scan_id: int, scan_type: str, target: str, extra: Optional[str] = None) -> None:
     """يشتغل في Background Task — يُحدّث الـ DB مع التقدم"""
     async with AsyncSessionLocal() as db:
         scan = await db.get(Scan, scan_id)
@@ -64,12 +64,6 @@ async def _run_scan(scan_id: int, scan_type: str, target: str) -> None:
                 result = await scan_domain(target, progress_cb=progress_cb)
             elif scan_type == "api":
                 from app.core.scanner.api_scanner import scan_api
-                # extra = optional auth header
-                extra = None
-                async with AsyncSessionLocal() as _db:
-                    s = await _db.get(Scan, scan_id)
-                    if s and s.error_msg:
-                        extra = s.error_msg  # reuse field temporarily
                 result = await scan_api(target, auth_header=extra, progress_cb=progress_cb)
             elif scan_type == "github":
                 from app.core.scanner.github_scanner import scan_github
@@ -144,14 +138,12 @@ async def create_scan(
         raise HTTPException(400, detail={"message": "الهدف لا يمكن أن يكون فارغاً"})
 
     # فحص حد الاستهلاك
-    plan = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
-    limiter = UsageLimiter(db, user.id, plan)
-    check = await limiter.check_scan()
+    check = await UsageLimiter.check_scan(db, user)
     if not check.allowed:
         raise HTTPException(429, detail={"message": check.message_ar, "reason": check.reason})
 
     # سجّل الاستهلاك
-    await limiter.record_scan()
+    await UsageLimiter.record_scan(db, user.id, body.scan_type)
 
     # إنشاء سجل الفحص
     display = target[:100]
@@ -167,7 +159,7 @@ async def create_scan(
     await db.refresh(scan)
 
     # شغّل الفحص في الخلفية
-    background_tasks.add_task(_run_scan, scan.id, body.scan_type, target)
+    background_tasks.add_task(_run_scan, scan.id, body.scan_type, target, body.extra or None)
 
     return {
         "success": True,
@@ -188,12 +180,10 @@ async def upload_file_scan(
     if file.size and file.size > MAX_FILE_SIZE:
         raise HTTPException(413, detail={"message": "حجم الملف يتجاوز الحد المسموح (5MB)"})
 
-    plan = user.plan.value if hasattr(user.plan, "value") else str(user.plan)
-    limiter = UsageLimiter(db, user.id, plan)
-    check = await limiter.check_scan()
+    check = await UsageLimiter.check_scan(db, user)
     if not check.allowed:
         raise HTTPException(429, detail={"message": check.message_ar, "reason": check.reason})
-    await limiter.record_scan()
+    await UsageLimiter.record_scan(db, user.id, "file")
 
     try:
         raw = await file.read()
@@ -307,8 +297,7 @@ async def scan_progress_ws(
             pass
 
     if not user:
-        await websocket.send_json({"error": "unauthorized"})
-        await websocket.close(1008)
+        await websocket.close(code=1008, reason="unauthorized")
         return
 
     try:
