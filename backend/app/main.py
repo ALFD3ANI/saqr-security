@@ -84,12 +84,15 @@ async def add_security_headers(request: Request, call_next):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception", error=str(exc), path=request.url.path)
+    import traceback
     return JSONResponse(
         status_code=500,
         content={
             "error": "internal_server_error",
             "message": "حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى",
             "message_en": "An unexpected error occurred, please try again",
+            "debug": str(exc),
+            "trace": traceback.format_exc()[-800:],
         },
     )
 
