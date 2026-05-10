@@ -112,7 +112,11 @@ async def scan_file(filename: str, content: str, progress_cb=None) -> ScanResult
 
     # ── الملفات الحساسة بالاسم ────────────────────────────────
     for sensitive_name, severity in SENSITIVE_FILES.items():
-        if sensitive_name in name_lower:
+        if sensitive_name.startswith("."):
+            matched = name_lower == sensitive_name or name_lower.endswith(sensitive_name)
+        else:
+            matched = name_lower == sensitive_name
+        if matched:
             result.findings.append(Finding(
                 severity=severity,
                 category="config",

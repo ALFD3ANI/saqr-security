@@ -64,7 +64,7 @@ async def scan_github(repo_input: str, progress_cb=None) -> ScanResult:
         return result
 
     owner, repo = parsed
-    repo = repo.rstrip(".git")
+    repo = repo[:-4] if repo.endswith(".git") else repo
 
     if progress_cb: await progress_cb(10, f"Fetching repository info: {owner}/{repo}...")
 

@@ -157,7 +157,7 @@ async def get_approval_detail(
             "company_name": req.company_name,
             "company_size": req.company_size,
             "use_case": req.use_case,
-            "status": str(user.status.value if user and hasattr(user.status, 'value') else ""),
+            "status": str(user.status.value if user and hasattr(user.status, 'value') else "unknown"),
             "created_at": user.created_at.isoformat() if user else None,
         },
     }
