@@ -7,6 +7,7 @@ import os
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 from app.core.config import settings
 
 
@@ -32,14 +33,11 @@ _is_sqlite = DB_URL.startswith("sqlite")
 
 _engine_kwargs: dict = {}
 if not _is_sqlite:
+    # NullPool avoids prepared-statement conflicts with Supabase's PgBouncer
+    # transaction pooler — each request gets a fresh connection.
     _engine_kwargs = {
-        "pool_pre_ping": True,
-        "pool_size": 5,
-        "max_overflow": 10,
-        "connect_args": {
-            "ssl": "require",
-            "statement_cache_size": 0,
-        },
+        "poolclass": NullPool,
+        "connect_args": {"ssl": "require"},
     }
 
 engine = create_async_engine(
