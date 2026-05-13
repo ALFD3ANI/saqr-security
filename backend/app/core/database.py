@@ -33,10 +33,16 @@ _is_sqlite = DB_URL.startswith("sqlite")
 _engine_kwargs: dict = {}
 if not _is_sqlite:
     _engine_kwargs = {
-        "pool_pre_ping": True,
-        "pool_size": 5,
-        "max_overflow": 10,
-        "connect_args": {"ssl": None},
+        "pool_pre_ping": True,   # يختبر الاتصال قبل استخدامه — يُصلح مشكلة cold-start
+        "pool_size": 3,          # حجم صغير يُسرِّع بدء التشغيل
+        "max_overflow": 7,
+        "pool_recycle": 300,     # يُجدِّد الاتصالات كل 5 دقائق
+        "pool_timeout": 10,      # لا ينتظر أكثر من 10 ثواني لاتصال جديد
+        "connect_args": {
+            "ssl": None,
+            "command_timeout": 30,   # مهلة asyncpg لكل أمر SQL
+            "timeout": 15,           # مهلة إنشاء الاتصال بـ PostgreSQL
+        },
     }
 
 engine = create_async_engine(

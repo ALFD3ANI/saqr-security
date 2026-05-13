@@ -8,7 +8,7 @@ import { API_BASE } from "../lib/config";
 
 const api = axios.create({
   baseURL: API_BASE,
-  timeout: 65000,
+  timeout: 120_000,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -122,7 +122,7 @@ export const authApi = {
 // ── Scans API ─────────────────────────────────────────────────
 export const scansApi = {
   create: (scan_type: string, target: string, extra?: string) =>
-    api.post("/scans/", { scan_type, target, extra }, { timeout: 90000 }),
+    api.post("/scans/", { scan_type, target, extra }, { timeout: 120_000 }),
   upload: (file: File) => {
     const form = new FormData();
     form.append("file", file);

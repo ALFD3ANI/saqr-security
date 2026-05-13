@@ -2,7 +2,6 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import api, { scansApi } from "@/services/api";
-import { API_BASE } from "@/lib/config";
 import {
   Globe, ArrowLeft, Shield, FileCode2, Server, Github,
   Mail, Network, Upload, X, AlertTriangle, Loader2,
@@ -72,19 +71,10 @@ const SCAN_TYPES: ScanTypeConfig[] = [
   },
 ];
 
-/**
- * 1. Ping /health to wake the Railway backend from sleep
- * 2. Call /auth/me via axios — if token expired the interceptor auto-refreshes it,
- *    if refresh also fails it redirects to /login before the scan request fires
- */
-async function warmUpBackend(): Promise<void> {
-  try {
-    await fetch(`${API_BASE}/health`, { method: "GET", signal: AbortSignal.timeout(30_000) });
-  } catch { /* ignore */ }
-  try {
-    await api.get("/auth/me");
-  } catch { /* interceptor handles 401 → refresh or redirect */ }
-}
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+const isTimeoutError = (e: any) =>
+  e?.code === "ECONNABORTED" || e?.message?.includes("timeout") || e?.message?.includes("Network Error");
 
 export default function NewScan() {
   const navigate = useNavigate();
@@ -100,17 +90,34 @@ export default function NewScan() {
 
   const mut = useMutation({
     mutationFn: async () => {
-      // Wake up the backend first (handles Railway cold-start)
-      setStatusMsg("جاري التحقق من الخادم...");
-      await warmUpBackend();
-      setStatusMsg("جاري إنشاء الفحص...");
+      // Verify token (interceptor auto-refreshes if expired, redirects to /login if both expired)
+      try { await api.get("/auth/me"); } catch { /* handled by interceptor */ }
 
-      if (config.isFile) {
-        if (!file) throw new Error("يرجى اختيار ملف");
-        const res = await scansApi.upload(file);
+      const doCreate = () => {
+        if (config.isFile) {
+          if (!file) throw new Error("يرجى اختيار ملف");
+          return scansApi.upload(file);
+        }
+        return scansApi.create(selectedType, target.trim(), extra.trim() || undefined);
+      };
+
+      // First attempt
+      setStatusMsg("جاري إرسال الطلب...");
+      const wakeTimer = setTimeout(() => setStatusMsg("الخادم يستيقظ من السكون... ⏳"), 5000);
+      try {
+        const res = await doCreate();
+        clearTimeout(wakeTimer);
         return res;
+      } catch (e: any) {
+        clearTimeout(wakeTimer);
+        // Auto-retry once if timeout (Railway cold-start scenario)
+        if (isTimeoutError(e)) {
+          setStatusMsg("جاري إعادة المحاولة...");
+          await sleep(2000);
+          return doCreate();
+        }
+        throw e;
       }
-      return scansApi.create(selectedType, target.trim(), extra.trim() || undefined);
     },
     onSuccess: (res) => navigate(`/scans/${res.data.scan_id}`),
     onError: (e: any) => {
@@ -118,8 +125,8 @@ export default function NewScan() {
       if (e.isAuthRedirect) return;
       if (e.isNetworkError) {
         setError("لا يمكن الوصول للخادم — تحقق من اتصالك أو حاول لاحقاً");
-      } else if (e.code === "ECONNABORTED" || e.message?.includes("timeout")) {
-        setError("الخادم يستغرق وقتاً أطول من المعتاد — حاول مرة أخرى");
+      } else if (isTimeoutError(e)) {
+        setError("الخادم لا يستجيب — تأكد من أن الخادم يعمل وحاول مرة أخرى");
       } else if (e.response?.status === 429) {
         setError(e.response?.data?.detail?.message ?? "وصلت لحد الفحوصات المسموح — رقّ خطتك للمزيد");
       } else if (e.response?.status === 403) {
