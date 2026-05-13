@@ -2,9 +2,10 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { scansApi } from "@/services/api";
+import { API_BASE } from "@/lib/config";
 import {
   Globe, ArrowLeft, Shield, FileCode2, Server, Github,
-  Mail, Network, Upload, X, AlertTriangle
+  Mail, Network, Upload, X, AlertTriangle, Loader2,
 } from "lucide-react";
 
 interface ScanTypeConfig {
@@ -71,6 +72,15 @@ const SCAN_TYPES: ScanTypeConfig[] = [
   },
 ];
 
+/** Ping the backend to wake it up before a heavy scan request */
+async function warmUpBackend(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/health`, { method: "GET", signal: AbortSignal.timeout(30_000) });
+  } catch {
+    // ignore — we'll let the actual request fail naturally
+  }
+}
+
 export default function NewScan() {
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -79,11 +89,17 @@ export default function NewScan() {
   const [extra, setExtra] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
+  const [statusMsg, setStatusMsg] = useState("");
 
   const config = SCAN_TYPES.find(s => s.type === selectedType)!;
 
   const mut = useMutation({
     mutationFn: async () => {
+      // Wake up the backend first (handles Railway cold-start)
+      setStatusMsg("جاري التحقق من الخادم...");
+      await warmUpBackend();
+      setStatusMsg("جاري إنشاء الفحص...");
+
       if (config.isFile) {
         if (!file) throw new Error("يرجى اختيار ملف");
         const res = await scansApi.upload(file);
@@ -93,15 +109,21 @@ export default function NewScan() {
     },
     onSuccess: (res) => navigate(`/scans/${res.data.scan_id}`),
     onError: (e: any) => {
-      if (e.isAuthRedirect) return; // المعترض يُعيد التوجيه لصفحة الدخول — لا داعي لرسالة خطأ
+      setStatusMsg("");
+      if (e.isAuthRedirect) return;
       if (e.isNetworkError) {
         setError("لا يمكن الوصول للخادم — تحقق من اتصالك أو حاول لاحقاً");
       } else if (e.code === "ECONNABORTED" || e.message?.includes("timeout")) {
-        setError("الخادم يستيقظ من السكون، انتظر لحظة ثم أعد المحاولة");
+        setError("الخادم يستغرق وقتاً أطول من المعتاد — حاول مرة أخرى");
+      } else if (e.response?.status === 429) {
+        setError(e.response?.data?.detail?.message ?? "وصلت لحد الفحوصات المسموح — رقّ خطتك للمزيد");
+      } else if (e.response?.status === 403) {
+        setError(e.response?.data?.detail?.message ?? "حسابك غير مفعّل أو لا يملك صلاحية الفحص");
       } else {
         setError(e.response?.data?.detail?.message ?? e.message ?? "حدث خطأ أثناء إنشاء الفحص");
       }
     },
+    onSettled: () => setStatusMsg(""),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -168,7 +190,6 @@ export default function NewScan() {
       <form onSubmit={handleSubmit} className="bg-bg-card border border-border rounded-2xl p-6 space-y-4">
 
         {config.isFile ? (
-          /* File Upload */
           <div>
             <label className="block text-sm font-medium text-text-primary mb-2">
               اختر ملف كود للفحص
@@ -210,7 +231,6 @@ export default function NewScan() {
             )}
           </div>
         ) : (
-          /* Text Target */
           <div>
             <label className="block text-sm font-medium text-text-primary mb-2">الهدف</label>
             <input
@@ -224,7 +244,6 @@ export default function NewScan() {
           </div>
         )}
 
-        {/* Extra field (e.g. auth header for API scan) */}
         {config.hasExtra && (
           <div>
             <label className="block text-sm font-medium text-text-primary mb-2">
@@ -248,7 +267,6 @@ export default function NewScan() {
           </div>
         )}
 
-        {/* Disclaimer */}
         <div className="flex gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
           <Shield size={14} className="text-primary shrink-0 mt-0.5" />
           <p className="text-xs text-text-muted">
@@ -259,9 +277,14 @@ export default function NewScan() {
         <button
           type="submit"
           disabled={mut.isPending || (!config.isFile && !target.trim()) || (config.isFile && !file)}
-          className="w-full bg-primary text-bg-dark font-semibold py-3 rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors"
+          className="w-full bg-primary text-bg-dark font-semibold py-3 rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors flex items-center justify-center gap-2"
         >
-          {mut.isPending ? "جاري إنشاء الفحص..." : "ابدأ الفحص"}
+          {mut.isPending ? (
+            <>
+              <Loader2 size={15} className="animate-spin" />
+              {statusMsg || "جاري إنشاء الفحص..."}
+            </>
+          ) : "ابدأ الفحص"}
         </button>
       </form>
     </div>

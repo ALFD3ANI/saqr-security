@@ -6,7 +6,6 @@ import asyncio
 import ssl
 import socket
 import re
-import json
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
@@ -108,9 +107,14 @@ SENSITIVE_CONTENT_PATTERNS = [
 
 SUSPICIOUS_PATHS = [
     "/.git/HEAD", "/.env", "/wp-admin/", "/phpmyadmin/",
-    "/admin/", "/.htaccess", "/config.php", "/web.config",
-    "/backup/", "/db.sql", "/.DS_Store",
+    "/.htaccess", "/config.php",
 ]
+
+# timeout constants (kept short so stuck scans don't hold workers)
+_HTTP_TIMEOUT   = 8.0   # main page fetch
+_PATH_TIMEOUT   = 3.0   # sensitive path probing
+_SSL_TIMEOUT    = 6.0   # SSL socket check
+_DNS_TIMEOUT    = 5.0   # DNS resolution
 
 
 async def scan_url(url: str, progress_cb=None) -> ScanResult:
@@ -123,25 +127,36 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
     parsed = urlparse(url)
     hostname = parsed.hostname or ""
 
-    # ── 1. DNS + Connectivity ──────────────────────────────────
+    # ── 1. DNS ────────────────────────────────────────────────
     if progress_cb: await progress_cb(10, "Resolving DNS...")
     try:
         loop = asyncio.get_running_loop()
         ip_address = await asyncio.wait_for(
             loop.run_in_executor(None, socket.gethostbyname, hostname),
-            timeout=5.0,
+            timeout=_DNS_TIMEOUT,
         )
-    except (asyncio.TimeoutError, socket.gaierror, OSError):
-        result.error = f"DNS resolution failed for {hostname}"
+    except asyncio.TimeoutError:
+        result.error = f"انتهت مهلة حل DNS للنطاق: {hostname}"
+        result.risk_score = 0
+        result.risk_level = "unknown"
+        return result
+    except (socket.gaierror, OSError):
+        result.error = f"لم يتم العثور على النطاق: {hostname} — تأكد من صحة العنوان"
         result.risk_score = 0
         result.risk_level = "unknown"
         return result
 
-    # ── 2. SSL Check ──────────────────────────────────────────
+    # ── 2. SSL ────────────────────────────────────────────────
     if progress_cb: await progress_cb(20, "Checking SSL/TLS...")
     if url.startswith("https://"):
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _check_ssl, hostname, result)
+        try:
+            await asyncio.wait_for(
+                loop.run_in_executor(None, _check_ssl, hostname, result),
+                timeout=_SSL_TIMEOUT + 2,
+            )
+        except asyncio.TimeoutError:
+            pass  # SSL check silently skipped on timeout
     else:
         result.findings.append(Finding(
             severity="critical",
@@ -161,42 +176,63 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
 
     try:
         async with httpx.AsyncClient(
-            timeout=15.0,
+            timeout=_HTTP_TIMEOUT,
             follow_redirects=True,
             verify=False,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; SaqrScanner/1.0)"},
+            headers={"User-Agent": "Mozilla/5.0 (compatible; SaqrScanner/1.0; +https://saqr.security)"},
         ) as client:
             resp = await client.get(url)
             response = resp
             final_url = str(resp.url)
             redirect_chain = [str(h.url) for h in resp.history]
+
     except httpx.TimeoutException:
         result.findings.append(Finding(
             severity="info",
             category="network",
-            title="Slow Response",
-            title_ar="استجابة بطيئة",
-            description=f"The server at {hostname} did not respond within 15 seconds.",
-            recommendation="Investigate server performance and response times.",
+            title="Slow Response / Timeout",
+            title_ar="استجابة بطيئة أو انتهاء المهلة",
+            description=f"الخادم على {hostname} لم يستجب خلال {_HTTP_TIMEOUT} ثانية — قد يكون بطيئاً أو يحجب الفحص الآلي.",
+            recommendation="تحقق من أداء الخادم. بعض المواقع تحجب الطلبات الآلية.",
+        ))
+    except httpx.ConnectError:
+        result.findings.append(Finding(
+            severity="medium",
+            category="network",
+            title="Connection Refused / Blocked",
+            title_ar="رفض الاتصال أو محجوب",
+            description=f"تعذّر الاتصال بـ {hostname} — قد يكون الخادم يرفض الاتصالات من خارج نطاقه الجغرافي أو من عناوين IP لمزودي السحابة.",
+            recommendation="تأكد من إمكانية الوصول للموقع من الإنترنت العام.",
         ))
     except Exception as e:
-        result.error = f"Connection failed: {str(e)[:200]}"
-        result.risk_score = 0
-        result.risk_level = "unknown"
-        return result
+        err_msg = str(e)
+        if "ssl" in err_msg.lower() or "certificate" in err_msg.lower():
+            result.findings.append(Finding(
+                severity="high",
+                category="ssl",
+                title="SSL Connection Error",
+                title_ar="خطأ في اتصال SSL",
+                description=f"فشل الاتصال الآمن بالموقع: {err_msg[:150]}",
+                recommendation="تحقق من صحة شهادة SSL وإعدادات TLS.",
+                cwe_id="CWE-295",
+            ))
+        else:
+            result.error = f"تعذّر الاتصال: {err_msg[:200]}"
+            result.risk_score = 0
+            result.risk_level = "unknown"
+            return result
 
     # ── 4. Redirect Analysis ───────────────────────────────────
     if progress_cb: await progress_cb(45, "Analyzing redirects...")
     if redirect_chain:
-        # Check if redirecting to HTTP
         if any("http://" in r for r in redirect_chain):
             result.findings.append(Finding(
                 severity="medium",
                 category="ssl",
                 title="HTTP Redirect in Chain",
                 title_ar="إعادة توجيه عبر HTTP غير مشفّر",
-                description=f"The redirect chain includes an unencrypted HTTP hop: {redirect_chain}",
-                recommendation="Ensure all redirects use HTTPS exclusively.",
+                description=f"سلسلة إعادة التوجيه تمر عبر HTTP غير مشفّر.",
+                recommendation="تأكد من أن جميع عمليات إعادة التوجيه تستخدم HTTPS فقط.",
                 cwe_id="CWE-319",
                 evidence=" → ".join(redirect_chain[:5]),
             ))
@@ -207,8 +243,8 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
                 category="network",
                 title="Excessive Redirects",
                 title_ar="سلسلة إعادة توجيه طويلة",
-                description=f"The site has {len(redirect_chain)} redirects before reaching the final URL.",
-                recommendation="Reduce redirect chains to improve security and performance.",
+                description=f"الموقع يعيد التوجيه {len(redirect_chain)} مرات قبل الوصول للصفحة النهائية.",
+                recommendation="قلّل عمليات إعادة التوجيه لتحسين الأمان والأداء.",
                 evidence=f"{len(redirect_chain)} hops",
             ))
 
@@ -243,7 +279,6 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
                     evidence=f"{header_name}: {value[:100]}",
                 ))
 
-        # Weak CSP check
         csp = headers_lower.get("content-security-policy", "")
         if csp:
             if "unsafe-inline" in csp:
@@ -251,7 +286,7 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
                     severity="medium", category="headers",
                     title="CSP Allows unsafe-inline",
                     title_ar="سياسة CSP تسمح بـ unsafe-inline",
-                    description="The CSP includes 'unsafe-inline' which allows inline scripts and styles, reducing XSS protection.",
+                    description="The CSP includes 'unsafe-inline' which allows inline scripts and styles.",
                     recommendation="Remove 'unsafe-inline' and use nonces or hashes instead.",
                     cwe_id="CWE-693",
                     evidence=csp[:200],
@@ -266,7 +301,7 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
                     cwe_id="CWE-693",
                     evidence=csp[:200],
                 ))
-            if "*" in csp:
+            if "* " in csp or csp.strip().endswith("*"):
                 result.findings.append(Finding(
                     severity="medium", category="headers",
                     title="CSP Wildcard Source",
@@ -281,7 +316,7 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
     if progress_cb: await progress_cb(70, "Scanning page content...")
     if response and response.status_code == 200:
         try:
-            content = response.text[:100_000]  # max 100KB
+            content = response.text[:80_000]
             content_lower = content.lower()
 
             for pattern, severity, title, title_ar in SENSITIVE_CONTENT_PATTERNS:
@@ -299,38 +334,43 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
                         evidence=evidence[:200],
                     ))
 
-            # Check for mixed content
             if "https://" in final_url and re.search(r'src=["\']http://', content, re.IGNORECASE):
                 result.findings.append(Finding(
                     severity="medium", category="ssl",
                     title="Mixed Content Detected",
                     title_ar="محتوى مختلط (HTTP داخل HTTPS)",
-                    description="The HTTPS page loads resources over HTTP, which may be blocked by browsers.",
+                    description="The HTTPS page loads resources over HTTP.",
                     recommendation="Update all resource URLs to use HTTPS.",
                     cwe_id="CWE-319",
                 ))
         except Exception:
             pass
 
-    # ── 7. Sensitive Path Check ─────────────────────────────────
+    # ── 7. Sensitive Path Probing ──────────────────────────────
     if progress_cb: await progress_cb(85, "Checking sensitive paths...")
-    base = f"{parsed.scheme}://{parsed.netloc}"
     found_paths = []
 
-    async def _probe_path(client: httpx.AsyncClient, path: str) -> Optional[str]:
-        try:
-            r = await client.get(base + path)
-            if r.status_code == 200 and len(r.content) > 50:
-                return path
-        except Exception:
-            pass
-        return None
+    try:
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        async with httpx.AsyncClient(
+            timeout=_PATH_TIMEOUT,
+            follow_redirects=False,
+            verify=False,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; SaqrScanner/1.0)"},
+        ) as client:
+            async def _probe(path: str) -> Optional[str]:
+                try:
+                    r = await client.get(base_url + path)
+                    if r.status_code == 200 and len(r.content) > 50:
+                        return path
+                except Exception:
+                    pass
+                return None
 
-    async with httpx.AsyncClient(timeout=5.0, follow_redirects=False, verify=False) as client:
-        probe_results = await asyncio.gather(
-            *[_probe_path(client, p) for p in SUSPICIOUS_PATHS[:6]]
-        )
-        found_paths = [p for p in probe_results if p]
+            probe_results = await asyncio.gather(*[_probe(p) for p in SUSPICIOUS_PATHS], return_exceptions=True)
+            found_paths = [p for p in probe_results if isinstance(p, str)]
+    except Exception:
+        pass
 
     if found_paths:
         result.findings.append(Finding(
@@ -338,13 +378,13 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
             category="config",
             title="Sensitive Files Publicly Accessible",
             title_ar="ملفات حساسة متاحة للعموم",
-            description=f"The following sensitive paths returned HTTP 200: {', '.join(found_paths)}",
-            recommendation="Restrict access to sensitive files via web server configuration or .htaccess rules.",
+            description=f"المسارات التالية أعادت HTTP 200: {', '.join(found_paths)}",
+            recommendation="قيّد الوصول لهذه الملفات عبر إعدادات خادم الويب.",
             cwe_id="CWE-548",
             evidence=", ".join(found_paths),
         ))
 
-    # ── 8. Positive finding (info) ─────────────────────────────
+    # ── 8. Info Findings ──────────────────────────────────────
     if response and url.startswith("https://"):
         result.findings.append(Finding(
             severity="info", category="ssl",
@@ -363,7 +403,6 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
             recommendation="",
         ))
 
-    # ── Compute risk ──────────────────────────────────────────
     if progress_cb: await progress_cb(95, "Calculating risk score...")
     result.compute_risk()
     return result
@@ -373,11 +412,10 @@ def _check_ssl(hostname: str, result: ScanResult) -> None:
     try:
         ctx = ssl.create_default_context()
         with ctx.wrap_socket(socket.socket(), server_hostname=hostname) as s:
-            s.settimeout(8)
+            s.settimeout(_SSL_TIMEOUT)
             s.connect((hostname, 443))
             cert = s.getpeercert()
 
-        # Check expiry
         expire_str = cert.get("notAfter", "")
         if expire_str:
             expire_dt = datetime.strptime(expire_str, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
@@ -387,8 +425,8 @@ def _check_ssl(hostname: str, result: ScanResult) -> None:
                     severity="critical", category="ssl",
                     title="SSL Certificate Expired",
                     title_ar="شهادة SSL منتهية الصلاحية",
-                    description=f"The SSL certificate expired {abs(days_left)} days ago.",
-                    recommendation="Renew the SSL certificate immediately.",
+                    description=f"شهادة SSL انتهت منذ {abs(days_left)} يوم.",
+                    recommendation="جدّد الشهادة فوراً.",
                     cwe_id="CWE-298",
                     evidence=f"Expired: {expire_str}",
                 ))
@@ -397,8 +435,8 @@ def _check_ssl(hostname: str, result: ScanResult) -> None:
                     severity="high", category="ssl",
                     title="SSL Certificate Expiring Soon",
                     title_ar="شهادة SSL على وشك الانتهاء",
-                    description=f"The SSL certificate expires in {days_left} days.",
-                    recommendation="Renew the SSL certificate before it expires.",
+                    description=f"الشهادة تنتهي خلال {days_left} يوم.",
+                    recommendation="جدّد الشهادة قبل انتهائها.",
                     cwe_id="CWE-298",
                     evidence=f"Expires in: {days_left} days ({expire_str})",
                 ))
@@ -407,8 +445,8 @@ def _check_ssl(hostname: str, result: ScanResult) -> None:
                     severity="medium", category="ssl",
                     title="SSL Certificate Expires in 30 Days",
                     title_ar="شهادة SSL تنتهي خلال 30 يوم",
-                    description=f"The SSL certificate expires in {days_left} days. Plan renewal soon.",
-                    recommendation="Renew the certificate or set up auto-renewal.",
+                    description=f"الشهادة تنتهي خلال {days_left} يوم.",
+                    recommendation="خطّط لتجديد الشهادة قريباً.",
                     evidence=f"Expires in: {days_left} days",
                 ))
 
@@ -417,8 +455,8 @@ def _check_ssl(hostname: str, result: ScanResult) -> None:
             severity="critical", category="ssl",
             title="Invalid SSL Certificate",
             title_ar="شهادة SSL غير صالحة",
-            description=f"SSL certificate validation failed: {str(e)[:200]}",
-            recommendation="Obtain a valid certificate from a trusted CA (e.g., Let's Encrypt).",
+            description=f"فشل التحقق من شهادة SSL: {str(e)[:200]}",
+            recommendation="احصل على شهادة صالحة من CA موثوق (مثل Let's Encrypt).",
             cwe_id="CWE-295",
         ))
     except ssl.SSLError as e:
@@ -426,9 +464,9 @@ def _check_ssl(hostname: str, result: ScanResult) -> None:
             severity="high", category="ssl",
             title="SSL Error",
             title_ar="خطأ في SSL",
-            description=f"An SSL error occurred: {str(e)[:200]}",
-            recommendation="Review your SSL/TLS configuration.",
+            description=f"خطأ في اتصال SSL: {str(e)[:200]}",
+            recommendation="راجع إعدادات SSL/TLS.",
             cwe_id="CWE-326",
         ))
     except Exception:
-        pass  # SSL check failed silently — don't block the rest of the scan
+        pass
