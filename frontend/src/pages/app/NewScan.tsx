@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import api, { scansApi } from "@/services/api";
+import { API_BASE } from "@/lib/config";
 import {
   Globe, ArrowLeft, Shield, FileCode2, Server, Github,
   Mail, Network, Upload, X, AlertTriangle, Loader2,
@@ -73,8 +74,33 @@ const SCAN_TYPES: ScanTypeConfig[] = [
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-const isTimeoutError = (e: any) =>
-  e?.code === "ECONNABORTED" || e?.message?.includes("timeout") || e?.message?.includes("Network Error");
+/** Poll /ping every 2s until the backend responds (max 60s). Returns true if awake. */
+async function waitForBackend(
+  onStatus: (msg: string) => void,
+  timeoutMs = 60_000,
+): Promise<boolean> {
+  const pingUrl = API_BASE.replace("/api/v1", "") + "/api/v1/ping";
+  const start = Date.now();
+
+  // First try immediately
+  try {
+    const res = await fetch(pingUrl, { signal: AbortSignal.timeout(5_000) });
+    if (res.ok) return true;
+  } catch { /* server sleeping — start polling */ }
+
+  onStatus("الخادم يستيقظ من السكون... ⏳");
+
+  while (Date.now() - start < timeoutMs) {
+    await sleep(2_000);
+    const elapsed = Math.round((Date.now() - start) / 1_000);
+    onStatus(`الخادم يستيقظ... (${elapsed}s)`);
+    try {
+      const res = await fetch(pingUrl, { signal: AbortSignal.timeout(5_000) });
+      if (res.ok) return true;
+    } catch { /* still sleeping */ }
+  }
+  return false;
+}
 
 export default function NewScan() {
   const navigate = useNavigate();
@@ -90,43 +116,31 @@ export default function NewScan() {
 
   const mut = useMutation({
     mutationFn: async () => {
-      // Verify token (interceptor auto-refreshes if expired, redirects to /login if both expired)
-      try { await api.get("/auth/me"); } catch { /* handled by interceptor */ }
+      // Step 1: Make sure backend is awake (polls /ping every 2s, max 60s)
+      setStatusMsg("جاري الاتصال بالخادم...");
+      const awake = await waitForBackend(setStatusMsg, 60_000);
+      if (!awake) throw Object.assign(new Error("server_unavailable"), { isServerUnavailable: true });
 
-      const doCreate = () => {
-        if (config.isFile) {
-          if (!file) throw new Error("يرجى اختيار ملف");
-          return scansApi.upload(file);
-        }
-        return scansApi.create(selectedType, target.trim(), extra.trim() || undefined);
-      };
+      // Step 2: Refresh token if needed (backend is awake, so this is instant)
+      setStatusMsg("جاري التحقق من الجلسة...");
+      try { await api.get("/auth/me"); } catch { /* interceptor handles redirect */ }
 
-      // First attempt
-      setStatusMsg("جاري إرسال الطلب...");
-      const wakeTimer = setTimeout(() => setStatusMsg("الخادم يستيقظ من السكون... ⏳"), 5000);
-      try {
-        const res = await doCreate();
-        clearTimeout(wakeTimer);
-        return res;
-      } catch (e: any) {
-        clearTimeout(wakeTimer);
-        // Auto-retry once if timeout (Railway cold-start scenario)
-        if (isTimeoutError(e)) {
-          setStatusMsg("جاري إعادة المحاولة...");
-          await sleep(2000);
-          return doCreate();
-        }
-        throw e;
+      // Step 3: Create the scan (backend is awake, so this won't timeout)
+      setStatusMsg("جاري إنشاء الفحص...");
+      if (config.isFile) {
+        if (!file) throw new Error("يرجى اختيار ملف");
+        return scansApi.upload(file);
       }
+      return scansApi.create(selectedType, target.trim(), extra.trim() || undefined);
     },
     onSuccess: (res) => navigate(`/scans/${res.data.scan_id}`),
     onError: (e: any) => {
       setStatusMsg("");
       if (e.isAuthRedirect) return;
-      if (e.isNetworkError) {
+      if (e.isServerUnavailable) {
+        setError("الخادم لا يستجيب بعد 60 ثانية — حاول مرة أخرى بعد قليل");
+      } else if (e.isNetworkError) {
         setError("لا يمكن الوصول للخادم — تحقق من اتصالك أو حاول لاحقاً");
-      } else if (isTimeoutError(e)) {
-        setError("الخادم لا يستجيب — تأكد من أن الخادم يعمل وحاول مرة أخرى");
       } else if (e.response?.status === 429) {
         setError(e.response?.data?.detail?.message ?? "وصلت لحد الفحوصات المسموح — رقّ خطتك للمزيد");
       } else if (e.response?.status === 403) {
@@ -294,7 +308,7 @@ export default function NewScan() {
           {mut.isPending ? (
             <>
               <Loader2 size={15} className="animate-spin" />
-              {statusMsg || "جاري إنشاء الفحص..."}
+              {statusMsg || "جاري الاتصال..."}
             </>
           ) : "ابدأ الفحص"}
         </button>
