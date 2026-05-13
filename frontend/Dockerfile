@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-ARG VITE_API_URL
+ARG VITE_API_URL=https://backend-production-ee2a.up.railway.app
 ENV VITE_API_URL=$VITE_API_URL
 
 COPY . .
