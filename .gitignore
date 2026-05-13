@@ -50,8 +50,8 @@ frontend/.vite/
 *.sqlite
 *.sqlite3
 
-# Docker
-.dockerignore
+# Docker — .dockerignore is needed for Railway CLI deployments
+# .dockerignore
 
 # OS
 .DS_Store
