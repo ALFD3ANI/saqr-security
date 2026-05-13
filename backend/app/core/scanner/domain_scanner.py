@@ -11,18 +11,30 @@ import httpx
 from .base import Finding, ScanResult
 
 COMMON_PORTS = [
-    (21,   "FTP",        "high"),
-    (22,   "SSH",        "info"),
-    (23,   "Telnet",     "critical"),
-    (25,   "SMTP",       "medium"),
-    (80,   "HTTP",       "info"),
-    (443,  "HTTPS",      "info"),
-    (3306, "MySQL",      "critical"),
-    (5432, "PostgreSQL", "critical"),
-    (6379, "Redis",      "critical"),
-    (8080, "HTTP-Alt",   "medium"),
-    (27017, "MongoDB",   "critical"),
+    (21,    "FTP",        "high"),
+    (22,    "SSH",        "info"),
+    (23,    "Telnet",     "critical"),
+    (25,    "SMTP",       "medium"),
+    (80,    "HTTP",       "info"),
+    (443,   "HTTPS",      "info"),
+    (3306,  "MySQL",      "critical"),
+    (5432,  "PostgreSQL", "critical"),
+    (6379,  "Redis",      "critical"),
+    (8080,  "HTTP-Alt",   "medium"),
+    (27017, "MongoDB",    "critical"),
 ]
+
+PORT_ATTACK_SCENARIOS = {
+    21:    "FTP ينقل البيانات وكلمات المرور بالنص الواضح — المهاجم يعترضها أو يُنفِّذ Brute Force لكسر كلمة المرور والوصول الكامل للملفات.",
+    22:    "SSH مفتوح للعموم — المهاجم يُنفِّذ هجمات Brute Force مستمرة على كلمات المرور أو يحاول استغلال ثغرات OpenSSH إذا كان الإصدار قديماً.",
+    23:    "Telnet بروتوكول بدون تشفير — أي شخص على المسار الشبكي يقرأ كل ما يُكتَب بما في ذلك كلمات المرور ويستطيع التحكم الكامل بالجهاز.",
+    25:    "SMTP مفتوح قد يُستخدَم لإرسال بريد إلكتروني غير مرغوب (Spam Relay) أو لتعداد المستخدمين عبر VRFY command.",
+    3306:  "MySQL على الإنترنت مباشرة — المهاجم يُنفِّذ Brute Force على كلمة مرور root أو يستغل ثغرات MySQL للوصول لكل قواعد البيانات وتصديرها.",
+    5432:  "PostgreSQL مكشوف — المهاجم يحاول تسجيل الدخول كـ postgres (المستخدم الافتراضي) وقد يستطيع تنفيذ أوامر نظام عبر COPY TO/FROM PROGRAM.",
+    6379:  "Redis بدون مصادقة — أكثر الثغرات خطورة: المهاجم يقرأ ويعدل كل البيانات المخزّنة، وقد يكتب ملفات SSH authorized_keys للحصول على Shell كامل.",
+    8080:  "خادم ويب بديل — قد يكون لوحة إدارة أو API داخلي غير مُؤمَّن، يُنفِّذ المهاجم Brute Force أو يبحث عن مسارات حساسة.",
+    27017: "MongoDB بدون مصادقة (شائع جداً) — المهاجم يتصل مباشرة ويقرأ ويعدل كل قواعد البيانات دون كلمة مرور.",
+}
 
 COMMON_SUBDOMAINS = [
     "www", "mail", "webmail", "smtp", "api", "dev", "staging",
@@ -151,6 +163,7 @@ async def scan_domain(domain: str, progress_cb=None) -> ScanResult:
             title_ar="غياب سجل SPF",
             description="لا يوجد سجل SPF — يمكن لأي شخص إرسال بريد مزوّر من هذا النطاق.",
             recommendation='أضف TXT record: "v=spf1 include:_spf.google.com ~all"',
+            attack_scenario="المهاجم يُرسِل بريداً إلكترونياً يبدو كأنه من نطاقك تماماً (مثلاً: ceo@شركتك.com) لاستهداف موظفيك أو عملائك في هجمات تصيّد (Phishing) أو Business Email Compromise (BEC) التي تُكلِّف شركات ملايين الدولارات سنوياً.",
             cwe_id="CWE-290",
         ))
     else:
@@ -169,7 +182,8 @@ async def scan_domain(domain: str, progress_cb=None) -> ScanResult:
                 title="SPF +all — Allows Any Sender",
                 title_ar="سياسة SPF +all تسمح لأي مرسل",
                 description='سجل SPF يستخدم "+all" مما يسمح لأي خادم بإرسال بريد باسم نطاقك.',
-                recommendation='استبدل "+all" بـ "-all" أو "~all".',
+                recommendation='استبدل "+all" بـ "-all" أو "~all" فوراً.',
+                attack_scenario='+all تعني أن سجل SPF موجود لكنه يُجيز الجميع — كأنه لا يوجد أصلاً. المهاجم يرسل آلاف الرسائل المزيّفة من خوادم مختلفة حول العالم وتُسلَّم كلها دون إيقاف.',
                 cwe_id="CWE-290",
                 evidence=spf[:200],
             ))
@@ -183,6 +197,7 @@ async def scan_domain(domain: str, progress_cb=None) -> ScanResult:
             title_ar="غياب سجل DMARC",
             description="لا توجد سياسة DMARC — لا يمكن الإبلاغ عن بريد مزوّر أو إيقافه.",
             recommendation='أضف: _dmarc.domain TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@domain.com"',
+            attack_scenario="بدون DMARC حتى لو كان SPF أو DKIM موجوداً، يستطيع المهاجم تزوير الـ From: header تماماً. Gmail وOutlook سيقبلان الرسائل المزيّفة وتصل لصندوق الوارد مباشرة.",
             cwe_id="CWE-290",
         ))
     else:
@@ -201,6 +216,7 @@ async def scan_domain(domain: str, progress_cb=None) -> ScanResult:
                 title_ar="سياسة DMARC هي 'none' — للمراقبة فقط",
                 description="سياسة DMARC مضبوطة على 'none' — تراقب فقط ولا تمنع البريد المزوّر.",
                 recommendation="رفّع السياسة إلى p=quarantine أو p=reject.",
+                attack_scenario="p=none تعني أن خوادم البريد تُبلِّغ فقط ولا تُوقِف البريد المزوّر — المهاجم يستطيع إرسال بريد احتيالي ويصل للمستلم بشكل طبيعي تماماً.",
                 evidence=dmarc[:200],
             ))
 
@@ -242,8 +258,9 @@ async def scan_domain(domain: str, progress_cb=None) -> ScanResult:
                 severity=risk, category="network",
                 title=f"Open Port: {port}/{service}",
                 title_ar=f"منفذ مفتوح: {port}/{service}",
-                description=f"المنفذ {port} ({service}) متاح للعموم عبر الإنترنت.",
-                recommendation=f"قيّد الوصول للمنفذ {port} عبر جدار الحماية. اسمح فقط للـ IPs الموثوقة.",
+                description=f"المنفذ {port} ({service}) متاح للعموم عبر الإنترنت — هذا يُعدّ خطراً أمنياً كبيراً.",
+                recommendation=f"أغلق المنفذ {port} أو قيّده لعناوين IP محددة فقط عبر جدار الحماية (Firewall Rules).",
+                attack_scenario=PORT_ATTACK_SCENARIOS.get(port, f"المنفذ {port} ({service}) المفتوح للعموم يُوفِّر نقطة دخول للمهاجمين لتنفيذ هجمات مباشرة على هذه الخدمة."),
                 cwe_id="CWE-200",
                 evidence=f"{ip}:{port} ({service}) — OPEN",
             ))
@@ -253,7 +270,8 @@ async def scan_domain(domain: str, progress_cb=None) -> ScanResult:
                 title=f"Open Port: {port}/{service}",
                 title_ar=f"منفذ مفتوح: {port}/{service}",
                 description=f"المنفذ {port} ({service}) متاح للعموم.",
-                recommendation="تحقق من ضرورة أن يكون هذا المنفذ عاماً.",
+                recommendation="تحقق من ضرورة أن يكون هذا المنفذ عاماً وأغلقه إن أمكن.",
+                attack_scenario=PORT_ATTACK_SCENARIOS.get(port, f"المنفذ {port} ({service}) يُمثِّل سطح هجوم إضافي يمكن للمهاجم استغلاله."),
                 evidence=f"{ip}:{port} ({service}) — OPEN",
             ))
 

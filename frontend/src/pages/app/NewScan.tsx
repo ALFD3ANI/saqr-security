@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { scansApi } from "@/services/api";
+import api, { scansApi } from "@/services/api";
 import { API_BASE } from "@/lib/config";
 import {
   Globe, ArrowLeft, Shield, FileCode2, Server, Github,
@@ -72,13 +72,18 @@ const SCAN_TYPES: ScanTypeConfig[] = [
   },
 ];
 
-/** Ping the backend to wake it up before a heavy scan request */
+/**
+ * 1. Ping /health to wake the Railway backend from sleep
+ * 2. Call /auth/me via axios — if token expired the interceptor auto-refreshes it,
+ *    if refresh also fails it redirects to /login before the scan request fires
+ */
 async function warmUpBackend(): Promise<void> {
   try {
     await fetch(`${API_BASE}/health`, { method: "GET", signal: AbortSignal.timeout(30_000) });
-  } catch {
-    // ignore — we'll let the actual request fail naturally
-  }
+  } catch { /* ignore */ }
+  try {
+    await api.get("/auth/me");
+  } catch { /* interceptor handles 401 → refresh or redirect */ }
 }
 
 export default function NewScan() {

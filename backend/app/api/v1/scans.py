@@ -101,6 +101,7 @@ async def _run_scan(scan_id: int, scan_type: str, target: str, extra: Optional[s
                         "evidence": f.evidence,
                         "cwe_id": f.cwe_id,
                         "cvss_score": f.cvss_score,
+                        "attack_scenario": f.attack_scenario,
                     }
                     for f in result.findings
                 ])

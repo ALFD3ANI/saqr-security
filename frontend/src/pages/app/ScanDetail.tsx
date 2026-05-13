@@ -6,7 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { API_BASE, WS_ORIGIN } from "@/lib/config";
 import {
   ArrowLeft, Globe, CheckCircle2, XCircle, Loader2,
-  ChevronDown, ChevronUp, Bot, Sparkles, Wrench, X,
+  ChevronDown, ChevronUp, Bot, Sparkles, Wrench, X, Swords,
 } from "lucide-react";
 
 interface Finding {
@@ -19,6 +19,7 @@ interface Finding {
   evidence?: string;
   cwe_id?: string;
   cvss_score?: number;
+  attack_scenario?: string;
 }
 
 const SEV_CONFIG: Record<string, { label: string; color: string; bg: string; order: number }> = {
@@ -178,10 +179,22 @@ function FindingCard({
             <p className="text-xs font-medium text-text-muted mb-1">الوصف</p>
             <p className="text-sm text-text-primary leading-relaxed">{f.description}</p>
           </div>
-          <div>
-            <p className="text-xs font-medium text-text-muted mb-1">التوصية</p>
-            <p className="text-sm text-green-300 leading-relaxed">{f.recommendation}</p>
+
+          {f.attack_scenario && (
+            <div className="p-3 bg-red-500/8 border border-red-500/25 rounded-xl">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Swords size={12} className="text-red-400 shrink-0" />
+                <p className="text-xs font-semibold text-red-400">كيف يستغلها المهاجم</p>
+              </div>
+              <p className="text-sm text-red-200/80 leading-relaxed">{f.attack_scenario}</p>
+            </div>
+          )}
+
+          <div className="p-3 bg-green-500/8 border border-green-500/25 rounded-xl">
+            <p className="text-xs font-semibold text-green-400 mb-1.5">طريقة الإصلاح</p>
+            <p className="text-sm text-green-200/80 leading-relaxed">{f.recommendation}</p>
           </div>
+
           {f.evidence && (
             <div>
               <p className="text-xs font-medium text-text-muted mb-1">الدليل</p>

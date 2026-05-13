@@ -7,15 +7,16 @@ from typing import Optional
 
 @dataclass
 class Finding:
-    severity:       str           # critical | high | medium | low | info
-    category:       str           # ssl | headers | content | network | config | auth
-    title:          str
-    title_ar:       str
-    description:    str
-    recommendation: str
-    evidence:       Optional[str] = None
-    cwe_id:         Optional[str] = None
-    cvss_score:     Optional[float] = None
+    severity:         str           # critical | high | medium | low | info
+    category:         str           # ssl | headers | content | network | config | auth
+    title:            str
+    title_ar:         str
+    description:      str
+    recommendation:   str
+    evidence:         Optional[str] = None
+    cwe_id:           Optional[str] = None
+    cvss_score:       Optional[float] = None
+    attack_scenario:  Optional[str] = None   # كيف يستغل المهاجم هذه الثغرة
 
 
 @dataclass
