@@ -6,6 +6,10 @@
   :root {
     --bg-dark: #0f172a;
     --surface-dark: #1e293b;
+    --bg-card: #1e293b;
+    --border-default: #1e293b;
+    --text-primary: #f1f5f9;
+    --text-muted: #64748b;
   }
 
   html {
@@ -42,8 +46,28 @@
     background-color: #0f172a;
   }
 
+  .bg-bg-card {
+    background-color: #1e293b;
+  }
+
   .bg-surface-dark {
     background-color: #1e293b;
+  }
+
+  .text-text-primary {
+    color: #f1f5f9;
+  }
+
+  .text-text-muted {
+    color: #64748b;
+  }
+
+  .text-text-secondary {
+    color: #94a3b8;
+  }
+
+  .border-border {
+    border-color: #334155;
   }
 
   /* RTL helpers */

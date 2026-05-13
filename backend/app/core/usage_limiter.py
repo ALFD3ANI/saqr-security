@@ -141,6 +141,7 @@ class UsageLimiter:
         monthly = await UsageLimiter._get_or_create_monthly(db, user_id)
         daily   = await UsageLimiter._get_or_create_daily(db, user_id)
 
+        monthly.total_scans += 1
         field = f"{scan_type}_scans"
         if hasattr(monthly, field):
             setattr(monthly, field, getattr(monthly, field) + 1)

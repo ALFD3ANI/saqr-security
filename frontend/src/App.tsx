@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@/i18n";
@@ -45,9 +45,13 @@ const queryClient = new QueryClient();
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore();
+  const { pathname } = useLocation();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user?.status === "pending_approval") return <Navigate to="/pending-approval" replace />;
-  if (user?.status === "pending_payment") return <Navigate to="/billing" replace />;
+  // pending_payment يُسمح له بصفحة الفوترة فقط لإتمام الدفع
+  if (user?.status === "pending_payment" && pathname !== "/billing") {
+    return <Navigate to="/billing" replace />;
+  }
   return <>{children}</>;
 }
 

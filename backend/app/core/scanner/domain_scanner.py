@@ -75,8 +75,12 @@ async def scan_domain(domain: str, progress_cb=None) -> ScanResult:
 
     # ── 1. DNS A Record ──────────────────────────────────────
     try:
-        ip = socket.gethostbyname(domain)
-    except socket.gaierror:
+        loop = asyncio.get_running_loop()
+        ip = await asyncio.wait_for(
+            loop.run_in_executor(None, socket.gethostbyname, domain),
+            timeout=5.0,
+        )
+    except (asyncio.TimeoutError, socket.gaierror, OSError):
         result.error = f"Cannot resolve domain: {domain}"
         result.risk_score = 0
         result.risk_level = "unknown"

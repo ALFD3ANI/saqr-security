@@ -51,12 +51,16 @@ export default function Login() {
         navigate("/dashboard");
       }
     } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      if (detail?.error === "totp_required") {
-        setNeedTotp(true);
-        setError("");
+      if (err.isNetworkError) {
+        setError("لا يمكن الوصول للخادم — تحقق من اتصالك أو حاول لاحقاً");
       } else {
-        setError(detail?.message || "حدث خطأ، حاول مرة أخرى");
+        const detail = err.response?.data?.detail;
+        if (detail?.error === "totp_required") {
+          setNeedTotp(true);
+          setError("");
+        } else {
+          setError(detail?.message || "حدث خطأ، حاول مرة أخرى");
+        }
       }
     } finally {
       setLoading(false);

@@ -49,12 +49,18 @@ async def list_users(
         except ValueError:
             pass
 
-    total = await db.scalar(
-        select(func.count(User.id)).where(
-            *([User.status == status_enum] if status_enum else []),
-            *([User.plan == plan_enum] if plan_enum else []),
-        )
-    ) or 0
+    count_q = select(func.count(User.id))
+    if search:
+        count_q = count_q.where(or_(
+            User.email.ilike(f"%{search}%"),
+            User.full_name.ilike(f"%{search}%"),
+            User.company_name.ilike(f"%{search}%"),
+        ))
+    if status_enum:
+        count_q = count_q.where(User.status == status_enum)
+    if plan_enum:
+        count_q = count_q.where(User.plan == plan_enum)
+    total = await db.scalar(count_q) or 0
 
     rows = await db.execute(q.offset(offset).limit(limit))
     users = rows.scalars().all()

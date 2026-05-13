@@ -1,32 +1,48 @@
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   ScanLine, ShieldAlert, FileText, Bot,
   Clock, CheckCircle2, AlertTriangle, ArrowRight, Zap, Lock, RefreshCw,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUsage } from "@/hooks/useUsage";
+import { scansApi } from "@/services/api";
 import { StatCard } from "@/components/ui/StatCard";
 import { UsageBar } from "@/components/ui/UsageBar";
 import { PLAN_CONFIG, type Plan } from "@/types";
 import { cn, pct } from "@/lib/utils";
 
-const MOCK_SCANS = [
-  { id: 1, target: "mystore.sa",     type: "URL", status: "completed",   vulns: 5, time: "منذ ساعتين" },
-  { id: 2, target: "api.myapp.com",  type: "API", status: "completed",   vulns: 3, time: "أمس" },
-  { id: 3, target: "mobile-app.apk", type: "APK", status: "in_progress", vulns: 0, time: "الآن" },
-];
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1)  return "الآن";
+  if (mins < 60) return `منذ ${mins} د`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `منذ ${hours} س`;
+  return `منذ ${Math.floor(hours / 24)} ي`;
+}
 
-const STATUS_STYLES = {
-  completed:   { dot: "bg-emerald-400", text: "text-emerald-400", label: "مكتمل" },
-  in_progress: { dot: "bg-amber-400 animate-pulse", text: "text-amber-400", label: "قيد الفحص" },
-  failed:      { dot: "bg-red-400", text: "text-red-400", label: "فشل" },
+const STATUS_STYLES: Record<string, { dot: string; text: string; label: string }> = {
+  queued:    { dot: "bg-slate-400 animate-pulse",  text: "text-slate-400",  label: "في الانتظار" },
+  running:   { dot: "bg-amber-400 animate-pulse",  text: "text-amber-400",  label: "قيد الفحص"   },
+  completed: { dot: "bg-emerald-400",              text: "text-emerald-400", label: "مكتمل"       },
+  failed:    { dot: "bg-red-400",                  text: "text-red-400",    label: "فشل"          },
 };
 
 export default function Dashboard() {
   const { i18n } = useTranslation();
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { data: usage, isLoading, refetch } = useUsage();
   const ar = i18n.language === "ar";
+
+  const { data: scansData } = useQuery({
+    queryKey: ["scans", "recent"],
+    queryFn: () => scansApi.list({ limit: 5 }).then(r => r.data),
+    staleTime: 30_000,
+  });
+  const recentScans = scansData?.scans ?? [];
 
   const plan = (user?.plan ?? "free") as Plan;
   const planCfg = PLAN_CONFIG[plan];
@@ -62,7 +78,10 @@ export default function Dashboard() {
           >
             <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
           </button>
-          <button className="flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors text-sm">
+          <button
+            onClick={() => navigate("/scans/new")}
+            className="flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors text-sm"
+          >
             <ScanLine size={16} />
             {ar ? "فحص جديد" : "New Scan"}
           </button>
@@ -84,7 +103,10 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-          <button className="flex items-center gap-1.5 bg-accent hover:bg-accent-dark text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shrink-0">
+          <button
+            onClick={() => navigate("/billing")}
+            className="flex items-center gap-1.5 bg-accent hover:bg-accent-dark text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shrink-0"
+          >
             {ar ? "ترقية الخطة" : "Upgrade"} <ArrowRight size={14} className="rtl:rotate-180" />
           </button>
         </div>
@@ -108,8 +130,8 @@ export default function Dashboard() {
         />
         <StatCard
           title={ar ? "ثغرات مكتشفة" : "Vulnerabilities"}
-          value="12"
-          subtitle={ar ? "ثغرتان حرجتان" : "2 critical"}
+          value={isLoading ? "..." : recentScans.reduce((s: number, sc: any) => s + (sc.total_findings ?? 0), 0)}
+          subtitle={`${recentScans.reduce((s: number, sc: any) => s + (sc.critical_count ?? 0), 0)} حرجة`}
           icon={ShieldAlert}
           iconColor="text-red-400"
         />
@@ -129,30 +151,46 @@ export default function Dashboard() {
         <div className="lg:col-span-2 bg-surface-dark border border-slate-800 rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-white">{ar ? "آخر الفحوصات" : "Recent Scans"}</h2>
-            <button className="text-primary-400 text-xs flex items-center gap-1 hover:text-primary-300">
+            <button
+              onClick={() => navigate("/scans")}
+              className="text-primary-400 text-xs flex items-center gap-1 hover:text-primary-300"
+            >
               {ar ? "عرض الكل" : "View all"} <ArrowRight size={12} className="rtl:rotate-180" />
             </button>
           </div>
           <div className="space-y-2">
-            {MOCK_SCANS.map((scan) => {
-              const st = STATUS_STYLES[scan.status as keyof typeof STATUS_STYLES];
+            {recentScans.length === 0 ? (
+              <p className="text-slate-500 text-sm text-center py-4">
+                {ar ? "لا توجد فحوصات بعد" : "No scans yet"}
+              </p>
+            ) : recentScans.map((scan: any) => {
+              const st = STATUS_STYLES[scan.status as keyof typeof STATUS_STYLES] ?? STATUS_STYLES.failed;
               return (
-                <div key={scan.id} className="flex items-center gap-3 p-3 rounded-xl bg-bg-dark hover:bg-slate-900 transition-colors cursor-pointer">
+                <div
+                  key={scan.id}
+                  onClick={() => navigate(`/scans/${scan.id}`)}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-bg-dark hover:bg-slate-900 transition-colors cursor-pointer"
+                >
                   <div className={cn("w-2 h-2 rounded-full shrink-0", st.dot)} />
                   <div className="flex-1 min-w-0">
                     <div className="text-white text-sm font-medium truncate">{scan.target}</div>
-                    <div className="text-slate-500 text-xs">{scan.type} · {scan.time}</div>
+                    <div className="text-slate-500 text-xs">
+                      {scan.scan_type?.toUpperCase()} · {relativeTime(scan.created_at)}
+                    </div>
                   </div>
                   <span className={cn("text-xs shrink-0", st.text)}>
                     {scan.status === "completed"
-                      ? (scan.vulns > 0 ? `${scan.vulns} ثغرات` : "نظيف ✓")
+                      ? (scan.total_findings > 0 ? `${scan.total_findings} ثغرة` : "نظيف ✓")
                       : st.label}
                   </span>
                 </div>
               );
             })}
           </div>
-          <button className="mt-3 w-full border border-dashed border-slate-700 hover:border-primary-500/50 hover:bg-primary-500/5 rounded-xl py-3 text-slate-500 hover:text-primary-400 text-sm transition-all flex items-center justify-center gap-2">
+          <button
+            onClick={() => navigate("/scans/new")}
+            className="mt-3 w-full border border-dashed border-slate-700 hover:border-primary-500/50 hover:bg-primary-500/5 rounded-xl py-3 text-slate-500 hover:text-primary-400 text-sm transition-all flex items-center justify-center gap-2"
+          >
             <ScanLine size={16} />
             {ar ? "ابدأ فحصاً جديداً" : "Start a new scan"}
           </button>
@@ -183,7 +221,10 @@ export default function Dashboard() {
               </div>
             )}
             {plan !== "enterprise" && (
-              <button className="mt-4 w-full text-xs text-center text-primary-400 hover:text-primary-300 transition-colors">
+              <button
+                onClick={() => navigate("/billing")}
+                className="mt-4 w-full text-xs text-center text-primary-400 hover:text-primary-300 transition-colors"
+              >
                 {ar ? "ترقية الخطة ←" : "Upgrade plan →"}
               </button>
             )}
@@ -199,18 +240,32 @@ export default function Dashboard() {
                   <span className="text-slate-300">اقتربت من حد الفحوصات الشهري</span>
                 </div>
               )}
-              <div className="flex items-start gap-2.5 text-xs">
-                <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
-                <span className="text-slate-300">ثغرتان حرجتان تحتاجان معالجة</span>
-              </div>
-              <div className="flex items-start gap-2.5 text-xs">
-                <CheckCircle2 size={14} className="text-emerald-400 shrink-0 mt-0.5" />
-                <span className="text-slate-300">البريد محمي (DMARC مفعّل)</span>
-              </div>
-              <div className="flex items-start gap-2.5 text-xs">
-                <Clock size={14} className="text-slate-500 shrink-0 mt-0.5" />
-                <span className="text-slate-400">آخر فحص: منذ يومين</span>
-              </div>
+              {(() => {
+                const criticals = recentScans.reduce((s: number, sc: any) => s + (sc.critical_count ?? 0), 0);
+                const lastScan  = recentScans[0];
+                return (
+                  <>
+                    {criticals > 0 && (
+                      <div className="flex items-start gap-2.5 text-xs">
+                        <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                        <span className="text-slate-300">{criticals} ثغرة حرجة تحتاج معالجة</span>
+                      </div>
+                    )}
+                    {criticals === 0 && recentScans.length > 0 && (
+                      <div className="flex items-start gap-2.5 text-xs">
+                        <CheckCircle2 size={14} className="text-emerald-400 shrink-0 mt-0.5" />
+                        <span className="text-slate-300">لا توجد ثغرات حرجة</span>
+                      </div>
+                    )}
+                    {lastScan && (
+                      <div className="flex items-start gap-2.5 text-xs">
+                        <Clock size={14} className="text-slate-500 shrink-0 mt-0.5" />
+                        <span className="text-slate-400">آخر فحص: {relativeTime(lastScan.created_at)}</span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
 

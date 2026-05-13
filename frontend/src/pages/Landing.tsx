@@ -209,7 +209,10 @@ export default function Landing() {
                   )}
                 </div>
                 <button
-                  onClick={() => navigate(key === "enterprise" ? "/contact" : `/register?plan=${key}`)}
+                  onClick={() => key === "enterprise"
+                    ? (window.location.href = "mailto:sales@saqr-security.com")
+                    : navigate(`/register?plan=${key}`)
+                  }
                   className={`mt-auto w-full py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
                     popular
                       ? "bg-accent hover:bg-accent-dark text-white"

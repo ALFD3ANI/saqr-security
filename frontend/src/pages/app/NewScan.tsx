@@ -93,7 +93,14 @@ export default function NewScan() {
     },
     onSuccess: (res) => navigate(`/scans/${res.data.scan_id}`),
     onError: (e: any) => {
-      setError(e.response?.data?.detail?.message ?? e.message ?? "حدث خطأ أثناء إنشاء الفحص");
+      if (e.isAuthRedirect) return; // المعترض يُعيد التوجيه لصفحة الدخول — لا داعي لرسالة خطأ
+      if (e.isNetworkError) {
+        setError("لا يمكن الوصول للخادم — تحقق من اتصالك أو حاول لاحقاً");
+      } else if (e.code === "ECONNABORTED" || e.message?.includes("timeout")) {
+        setError("الخادم يستيقظ من السكون، انتظر لحظة ثم أعد المحاولة");
+      } else {
+        setError(e.response?.data?.detail?.message ?? e.message ?? "حدث خطأ أثناء إنشاء الفحص");
+      }
     },
   });
 

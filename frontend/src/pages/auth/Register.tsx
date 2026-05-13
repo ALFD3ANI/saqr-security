@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -44,13 +44,20 @@ const schema = z
 
 type RegisterForm = z.infer<typeof schema>;
 
+const VALID_PLANS = ["free", "starter", "professional", "business"];
+
 export default function Register() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+
+  const initialPlan = VALID_PLANS.includes(searchParams.get("plan") ?? "")
+    ? (searchParams.get("plan") as string)
+    : "free";
 
   const {
     register,
@@ -60,7 +67,7 @@ export default function Register() {
     formState: { errors },
   } = useForm<RegisterForm>({
     resolver: zodResolver(schema),
-    defaultValues: { plan: "free" },
+    defaultValues: { plan: initialPlan },
   });
 
   const selectedPlan = watch("plan");

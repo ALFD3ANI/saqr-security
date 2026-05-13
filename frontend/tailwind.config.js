@@ -26,8 +26,22 @@ export default {
           dark: "#1e293b",
           light: "#f8fafc",
         },
+        // bg-bg-dark, bg-bg-card
         bg: {
           dark: "#0f172a",
+          card: "#1e293b",
+        },
+        // text-text-primary, text-text-muted
+        text: {
+          primary: "#f1f5f9",
+          muted: "#64748b",
+          secondary: "#94a3b8",
+        },
+        // border-border
+        border: {
+          DEFAULT: "#334155",
+          dark: "#1e293b",
+          light: "#475569",
         },
       },
       fontFamily: {

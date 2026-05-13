@@ -3,6 +3,8 @@ Scans API — إنشاء وإدارة الفحوصات الأمنية
 """
 import asyncio
 import json
+
+SCAN_TIMEOUT_SECONDS = 120  # حد أقصى دقيقتان لكل فحص
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -56,28 +58,30 @@ async def _run_scan(scan_id: int, scan_type: str, target: str, extra: Optional[s
                         s.summary = json.dumps({"progress": pct, "message": msg})
                         await _db.commit()
 
-            if scan_type == "url":
-                from app.core.scanner.url_scanner import scan_url
-                result = await scan_url(target, progress_cb=progress_cb)
-            elif scan_type == "domain" or scan_type == "email":
-                from app.core.scanner.domain_scanner import scan_domain
-                result = await scan_domain(target, progress_cb=progress_cb)
-            elif scan_type == "api":
-                from app.core.scanner.api_scanner import scan_api
-                result = await scan_api(target, auth_header=extra, progress_cb=progress_cb)
-            elif scan_type == "github":
-                from app.core.scanner.github_scanner import scan_github
-                result = await scan_github(target, progress_cb=progress_cb)
-            elif scan_type == "file":
-                # target contains: "filename|||content"
-                if "|||" in target:
-                    filename, content = target.split("|||", 1)
+            async def _do_scan():
+                if scan_type == "url":
+                    from app.core.scanner.url_scanner import scan_url
+                    return await scan_url(target, progress_cb=progress_cb)
+                elif scan_type in ("domain", "email"):
+                    from app.core.scanner.domain_scanner import scan_domain
+                    return await scan_domain(target, progress_cb=progress_cb)
+                elif scan_type == "api":
+                    from app.core.scanner.api_scanner import scan_api
+                    return await scan_api(target, auth_header=extra, progress_cb=progress_cb)
+                elif scan_type == "github":
+                    from app.core.scanner.github_scanner import scan_github
+                    return await scan_github(target, progress_cb=progress_cb)
+                elif scan_type == "file":
+                    if "|||" in target:
+                        filename, content = target.split("|||", 1)
+                    else:
+                        filename, content = "unknown.txt", target
+                    from app.core.scanner.file_scanner import scan_file
+                    return await scan_file(filename, content, progress_cb=progress_cb)
                 else:
-                    filename, content = "unknown.txt", target
-                from app.core.scanner.file_scanner import scan_file
-                result = await scan_file(filename, content, progress_cb=progress_cb)
-            else:
-                raise ValueError(f"Unsupported scan_type: {scan_type}")
+                    raise ValueError(f"Unsupported scan_type: {scan_type}")
+
+            result = await asyncio.wait_for(_do_scan(), timeout=SCAN_TIMEOUT_SECONDS)
 
             # تحديث DB بالنتائج
             scan = await db.get(Scan, scan_id)
@@ -109,6 +113,14 @@ async def _run_scan(scan_id: int, scan_type: str, target: str, extra: Optional[s
                 scan.info_count       = result.summary.get("info", 0)
                 scan.completed_at     = datetime.now(timezone.utc)
                 scan.duration_ms      = int(datetime.now(timezone.utc).timestamp() * 1000 - start_ms)
+                await db.commit()
+
+        except asyncio.TimeoutError:
+            scan = await db.get(Scan, scan_id)
+            if scan:
+                scan.status = "failed"
+                scan.error_msg = f"انتهت مهلة الفحص ({SCAN_TIMEOUT_SECONDS}s) — الهدف لا يستجيب أو بطيء جداً"
+                scan.completed_at = datetime.now(timezone.utc)
                 await db.commit()
 
         except Exception as e:

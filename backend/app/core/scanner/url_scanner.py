@@ -2,6 +2,7 @@
 URL/Web Scanner — فحص المواقع الإلكترونية
 يفحص: SSL، Security Headers، المحتوى، إعادة التوجيه، معلومات مسرّبة
 """
+import asyncio
 import ssl
 import socket
 import re
@@ -125,8 +126,12 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
     # ── 1. DNS + Connectivity ──────────────────────────────────
     if progress_cb: await progress_cb(10, "Resolving DNS...")
     try:
-        ip_address = socket.gethostbyname(hostname)
-    except socket.gaierror:
+        loop = asyncio.get_running_loop()
+        ip_address = await asyncio.wait_for(
+            loop.run_in_executor(None, socket.gethostbyname, hostname),
+            timeout=5.0,
+        )
+    except (asyncio.TimeoutError, socket.gaierror, OSError):
         result.error = f"DNS resolution failed for {hostname}"
         result.risk_score = 0
         result.risk_level = "unknown"
@@ -135,7 +140,8 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
     # ── 2. SSL Check ──────────────────────────────────────────
     if progress_cb: await progress_cb(20, "Checking SSL/TLS...")
     if url.startswith("https://"):
-        _check_ssl(hostname, result)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _check_ssl, hostname, result)
     else:
         result.findings.append(Finding(
             severity="critical",
@@ -310,14 +316,21 @@ async def scan_url(url: str, progress_cb=None) -> ScanResult:
     if progress_cb: await progress_cb(85, "Checking sensitive paths...")
     base = f"{parsed.scheme}://{parsed.netloc}"
     found_paths = []
+
+    async def _probe_path(client: httpx.AsyncClient, path: str) -> Optional[str]:
+        try:
+            r = await client.get(base + path)
+            if r.status_code == 200 and len(r.content) > 50:
+                return path
+        except Exception:
+            pass
+        return None
+
     async with httpx.AsyncClient(timeout=5.0, follow_redirects=False, verify=False) as client:
-        for path in SUSPICIOUS_PATHS[:6]:  # limit to 6 to keep scan fast
-            try:
-                r = await client.get(base + path)
-                if r.status_code == 200 and len(r.content) > 50:
-                    found_paths.append(path)
-            except Exception:
-                pass
+        probe_results = await asyncio.gather(
+            *[_probe_path(client, p) for p in SUSPICIOUS_PATHS[:6]]
+        )
+        found_paths = [p for p in probe_results if p]
 
     if found_paths:
         result.findings.append(Finding(
