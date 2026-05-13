@@ -74,17 +74,24 @@ const SCAN_TYPES: ScanTypeConfig[] = [
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+/** Fetch with manual AbortController timeout — works in all modern browsers */
+function fetchWithTimeout(url: string, ms: number): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
 /** Poll /ping every 2s until the backend responds (max 60s). Returns true if awake. */
 async function waitForBackend(
   onStatus: (msg: string) => void,
   timeoutMs = 60_000,
 ): Promise<boolean> {
-  const pingUrl = API_BASE.replace("/api/v1", "") + "/api/v1/ping";
+  const pingUrl = API_BASE + "/ping";
   const start = Date.now();
 
   // First try immediately
   try {
-    const res = await fetch(pingUrl, { signal: AbortSignal.timeout(5_000) });
+    const res = await fetchWithTimeout(pingUrl, 5_000);
     if (res.ok) return true;
   } catch { /* server sleeping — start polling */ }
 
@@ -95,7 +102,7 @@ async function waitForBackend(
     const elapsed = Math.round((Date.now() - start) / 1_000);
     onStatus(`الخادم يستيقظ... (${elapsed}s)`);
     try {
-      const res = await fetch(pingUrl, { signal: AbortSignal.timeout(5_000) });
+      const res = await fetchWithTimeout(pingUrl, 5_000);
       if (res.ok) return true;
     } catch { /* still sleeping */ }
   }
