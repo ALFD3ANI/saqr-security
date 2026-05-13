@@ -115,11 +115,11 @@ function ResetPasswordForm({ token }: { token: string }) {
   const [error, setError] = useState("");
   const [showPwd, setShowPwd] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof resetSchema>>({
     resolver: zodResolver(resetSchema),
   });
 
-  const onSubmit = async (data: { new_password: string; confirm_password: string }) => {
+  const onSubmit = async (data: z.infer<typeof resetSchema>) => {
     setLoading(true);
     setError("");
     try {
@@ -181,7 +181,7 @@ function ResetPasswordForm({ token }: { token: string }) {
                 </button>
               </div>
               {errors.new_password && (
-                <p className="text-red-400 text-xs mt-1">{errors.new_password.message}</p>
+                <p className="text-red-400 text-xs mt-1">{errors.new_password.message as string}</p>
               )}
             </div>
 
@@ -198,7 +198,7 @@ function ResetPasswordForm({ token }: { token: string }) {
                 />
               </div>
               {errors.confirm_password && (
-                <p className="text-red-400 text-xs mt-1">{errors.confirm_password.message}</p>
+                <p className="text-red-400 text-xs mt-1">{errors.confirm_password.message as string}</p>
               )}
             </div>
 
