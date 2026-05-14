@@ -44,4 +44,4 @@ async def health_check():
 @router.get("/ping", tags=["Health"])
 async def ping():
     """أسرع نقطة ممكنة للـ keep-alive — لا تلمس قاعدة البيانات"""
-    return {"ok": True, "v": "fix-2026-05-14"}
+    return {"ok": True}

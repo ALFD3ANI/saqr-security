@@ -12,10 +12,12 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
       - name: Deploy Backend
+        run: railway up --detach --ci
         working-directory: backend
-        run: railway up --service ${{ vars.RAILWAY_BACKEND_SERVICE_ID }} --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: 7ffc6e29-4258-4e88-91ce-2790c9c1cb58
+          RAILWAY_ENVIRONMENT_ID: ff2fac5c-1c98-4a18-a698-97fa2a2ce3e5
 
   deploy-frontend:
     runs-on: ubuntu-latest
@@ -24,7 +26,9 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
       - name: Deploy Frontend
+        run: railway up --detach --ci
         working-directory: frontend
-        run: railway up --service ${{ vars.RAILWAY_FRONTEND_SERVICE_ID }} --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: 7ffc6e29-4258-4e88-91ce-2790c9c1cb58
+          RAILWAY_ENVIRONMENT_ID: ff2fac5c-1c98-4a18-a698-97fa2a2ce3e5
