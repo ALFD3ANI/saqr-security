@@ -151,12 +151,20 @@ async def create_scan(
         raise HTTPException(400, detail={"message": "الهدف لا يمكن أن يكون فارغاً"})
 
     # فحص حد الاستهلاك
-    check = await UsageLimiter.check_scan(db, user)
+    try:
+        check = await UsageLimiter.check_scan(db, user)
+    except Exception as e:
+        import traceback
+        raise HTTPException(500, detail={"message": f"check_scan error: {type(e).__name__}: {str(e)[:200]}", "trace": traceback.format_exc()[-500:]})
     if not check.allowed:
         raise HTTPException(429, detail={"message": check.message_ar, "reason": check.reason})
 
     # سجّل الاستهلاك
-    await UsageLimiter.record_scan(db, user.id, body.scan_type)
+    try:
+        await UsageLimiter.record_scan(db, user.id, body.scan_type)
+    except Exception as e:
+        import traceback
+        raise HTTPException(500, detail={"message": f"record_scan error: {type(e).__name__}: {str(e)[:200]}", "trace": traceback.format_exc()[-500:]})
 
     # إنشاء سجل الفحص
     display = target[:100]
@@ -167,9 +175,13 @@ async def create_scan(
         target_display=display,
         status="queued",
     )
-    db.add(scan)
-    await db.commit()
-    await db.refresh(scan)
+    try:
+        db.add(scan)
+        await db.commit()
+        await db.refresh(scan)
+    except Exception as e:
+        import traceback
+        raise HTTPException(500, detail={"message": f"scan commit error: {type(e).__name__}: {str(e)[:200]}", "trace": traceback.format_exc()[-500:]})
 
     # شغّل الفحص في الخلفية
     background_tasks.add_task(_run_scan, scan.id, body.scan_type, target, body.extra or None)
