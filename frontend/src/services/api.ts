@@ -34,11 +34,12 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const original = error.config as any;
 
-    // 401 — حاول التجديد مرة واحدة فقط، واستثني نقطة الـ refresh نفسها
+    // 401 — حاول التجديد مرة واحدة فقط، واستثني login و refresh
     if (
       error.response?.status === 401 &&
       !original._retry &&
-      !original.url?.endsWith("/auth/refresh")
+      !original.url?.endsWith("/auth/refresh") &&
+      !original.url?.endsWith("/auth/login")
     ) {
       original._retry = true;
       const refreshToken = localStorage.getItem("refresh_token");
