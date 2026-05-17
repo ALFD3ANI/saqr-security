@@ -277,7 +277,7 @@ async def delete_scan(
     scan = await db.get(Scan, scan_id)
     if not scan or scan.user_id != user.id:
         raise HTTPException(404, detail={"message": "الفحص غير موجود"})
-    await db.delete(scan)
+    db.delete(scan)
     await db.commit()
     return {"success": True}
 

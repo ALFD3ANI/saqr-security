@@ -1,11 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { AppHeader } from "./AppHeader";
+import api from "@/services/api";
+import { useAuthStore } from "@/stores/authStore";
 
 export function AppLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { updateUser } = useAuthStore();
+
+  // Refresh user status from server on every mount so status changes
+  // (e.g. pending_payment → active after admin approval) take effect without re-login.
+  useEffect(() => {
+    api.get("/auth/me").then((res) => updateUser(res.data)).catch(() => {});
+  }, []);
 
   return (
     <div className="flex h-screen bg-bg-dark overflow-hidden">

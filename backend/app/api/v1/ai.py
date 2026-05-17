@@ -462,7 +462,7 @@ async def delete_conversation(
     conv = await db.get(AIConversation, conv_id)
     if not conv or conv.user_id != user.id:
         raise HTTPException(404)
-    await db.delete(conv)
+    db.delete(conv)
     await db.commit()
     return {"success": True}
 
